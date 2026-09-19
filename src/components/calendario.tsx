@@ -12,20 +12,31 @@ import {
   sumarDias,
 } from "@/lib/fechas";
 import type { Reserva } from "@/lib/reservas";
+import type { Catalogos } from "@/lib/catalogos";
+import { EditarReserva } from "@/components/editar-reserva";
+import { WizardReserva } from "@/components/wizard-reserva";
 
 type Props = {
   reservas: Reserva[];
   hoy: string;
+  catalogos: Catalogos;
   salir: () => Promise<void>;
 };
 
 type Rango = { a: string; b: string };
 
-export function Calendario({ reservas, hoy, salir }: Props) {
+export function Calendario({ reservas, hoy, catalogos, salir }: Props) {
   const inicio = desdeIso(hoy);
   const [vista, setVista] = useState({ y: inicio.getFullYear(), m: inicio.getMonth() });
   const [arrastre, setArrastre] = useState<Rango | null>(null);
-  const [detalle, setDetalle] = useState<Reserva | null>(null);
+  const [detalleId, setDetalleId] = useState<string | null>(null);
+  const [editando, setEditando] = useState(false);
+  const detalle = reservas.find((x) => x.id === detalleId) ?? null;
+  const setDetalle = (x: Reserva | null) => {
+    setDetalleId(x?.id ?? null);
+    setEditando(false);
+  };
+  const [wizard, setWizard] = useState<{ a: string | null; b: string | null; clave: number } | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const arrastreRef = useRef<Rango | null>(null);
   const avisoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -54,14 +65,9 @@ export function Calendario({ reservas, hoy, salir }: Props) {
     avisoTimer.current = setTimeout(() => setAviso(null), 3200);
   };
 
-  // Las acciones que abren el wizard llegan con la Fase 2.
-  const abrirWizard = (a: string, b: string | null) => {
-    mostrarAviso(
-      b
-        ? `Reserva del ${formatoFecha(a)} al ${formatoFecha(b)}: el wizard llega en la Fase 2.`
-        : `Check-in ${formatoFecha(a)}: el wizard llega en la Fase 2.`,
-    );
-  };
+  // Con rango (arrastre) el wizard abre en el Paso 2; con solo check-in o sin fechas, en el Paso 1.
+  const abrirWizard = (a: string | null, b: string | null) =>
+    setWizard({ a, b, clave: Date.now() });
 
   const fijarArrastre = (r: Rango | null) => {
     arrastreRef.current = r;
@@ -165,7 +171,7 @@ export function Calendario({ reservas, hoy, salir }: Props) {
           <small>Casa Pumata</small>Calendario de ocupación
         </h1>
         <div className="acciones">
-          <button className="btn primary" onClick={() => abrirWizard(hoy, null)}>
+          <button className="btn primary" onClick={() => abrirWizard(null, null)}>
             + Nueva reserva
           </button>
           <form action={salir}>
@@ -238,13 +244,41 @@ export function Calendario({ reservas, hoy, salir }: Props) {
         </div>
       </section>
 
-      {detalle && <DetalleReserva r={detalle} cerrar={() => setDetalle(null)} />}
+      {detalle && !editando && (
+        <DetalleReserva r={detalle} cerrar={() => setDetalle(null)} editar={() => setEditando(true)} />
+      )}
+      {detalle && editando && (
+        <EditarReserva
+          key={detalle.id}
+          reserva={detalle}
+          catalogos={catalogos}
+          volver={() => setEditando(false)}
+          guardada={(m) => {
+            setEditando(false);
+            mostrarAviso(m);
+          }}
+        />
+      )}
+      {wizard && (
+        <WizardReserva
+          key={wizard.clave}
+          catalogos={catalogos}
+          hoy={hoy}
+          ocupado={ocupado}
+          inicial={{ a: wizard.a, b: wizard.b }}
+          cerrar={() => setWizard(null)}
+          creada={(m) => {
+            setWizard(null);
+            mostrarAviso(m);
+          }}
+        />
+      )}
       {aviso && <div className="toast" role="status">{aviso}</div>}
     </>
   );
 }
 
-function DetalleReserva({ r, cerrar }: { r: Reserva; cerrar: () => void }) {
+function DetalleReserva({ r, cerrar, editar }: { r: Reserva; cerrar: () => void; editar: () => void }) {
   const noches = diferenciaDias(r.checkin, r.checkout);
   const saldo = r.montoTotal - r.montoPagado;
   return (
@@ -300,6 +334,9 @@ function DetalleReserva({ r, cerrar }: { r: Reserva; cerrar: () => void }) {
         <div className="mf">
           <button className="btn" onClick={cerrar}>
             Cerrar
+          </button>
+          <button className="btn primary" onClick={editar}>
+            Editar reserva
           </button>
         </div>
       </div>

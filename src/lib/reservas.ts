@@ -3,6 +3,10 @@ import { sumarDias } from "@/lib/fechas";
 
 export type Reserva = {
   id: string;
+  huespedId: string;
+  origenId: number;
+  metodoId: number;
+  estadoId: number;
   checkin: string;
   checkout: string;
   numeroHuespedes: number;
@@ -22,6 +26,10 @@ export type Reserva = {
 
 type Fila = {
   id: string;
+  huesped_id: string;
+  origen_reserva_id: number;
+  metodo_pago_id: number;
+  estado_reserva_id: number;
   fecha_checkin: string;
   fecha_checkout: string;
   numero_huespedes: number;
@@ -30,7 +38,7 @@ type Fila = {
   notas: string | null;
   huespedes: {
     nombre_completo: string;
-    numero_documento: string;
+    numero_documento: string | null;
     telefono: string | null;
     correo: string | null;
     tipos_documento: { nombre: string } | null;
@@ -48,7 +56,7 @@ export async function reservasActivas(hoy: string): Promise<Reserva[]> {
   const { data, error } = await supabase
     .from("reservas")
     .select(
-      `id, fecha_checkin, fecha_checkout, numero_huespedes, monto_total, monto_pagado, notas,
+      `id, huesped_id, origen_reserva_id, metodo_pago_id, estado_reserva_id, fecha_checkin, fecha_checkout, numero_huespedes, monto_total, monto_pagado, notas,
        huespedes(nombre_completo, numero_documento, telefono, correo, tipos_documento(nombre)),
        origenes_reserva(nombre), metodos_pago(nombre), estados_reserva(nombre)`,
     )
@@ -61,6 +69,10 @@ export async function reservasActivas(hoy: string): Promise<Reserva[]> {
 
   return data.map((f) => ({
     id: f.id,
+    huespedId: f.huesped_id,
+    origenId: f.origen_reserva_id,
+    metodoId: f.metodo_pago_id,
+    estadoId: f.estado_reserva_id,
     checkin: f.fecha_checkin,
     checkout: f.fecha_checkout,
     numeroHuespedes: f.numero_huespedes,
@@ -72,7 +84,9 @@ export async function reservasActivas(hoy: string): Promise<Reserva[]> {
     notas: f.notas,
     huesped: {
       nombre: f.huespedes.nombre_completo,
-      documento: `${f.huespedes.tipos_documento?.nombre ?? ""} ${f.huespedes.numero_documento}`.trim(),
+      documento: f.huespedes.numero_documento
+        ? `${f.huespedes.tipos_documento?.nombre ?? ""} ${f.huespedes.numero_documento}`.trim()
+        : "Sin documento",
       telefono: f.huespedes.telefono,
       correo: f.huespedes.correo,
     },
