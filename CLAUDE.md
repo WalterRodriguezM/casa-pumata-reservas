@@ -34,3 +34,14 @@ catálogos pequeños como tablas propias (no enums), estados derivados
 en vez de columnas duplicadas, fire-and-forget para integraciones
 externas, migraciones SQL las corre el humano manualmente en el SQL
 Editor de Supabase (nunca el agente de forma directa).
+
+## Convención de trabajo: validar antes de construir
+
+- Para cualquier componente de UI (calendario, wizard, formularios,
+  reportes): mostrar un mockup/diseño visual para aprobación antes
+  de escribir el código final. No construir directamente sobre la
+  base de una descripción textual sin validar el diseño visual antes.
+- No asumir nada que no esté explícitamente confirmado — ante
+  cualquier ambigüedad o decisión de diseño/alcance, preguntar y
+  validar antes de decidir o de escribir código, en vez de tomar el
+  camino más razonable por cuenta propia.
