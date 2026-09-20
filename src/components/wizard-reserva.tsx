@@ -7,7 +7,7 @@ import {
   crearReserva,
   type HuespedNuevo,
   type HuespedResumen,
-} from "@/app/reservas/actions";
+} from "@/app/(app)/reservas/actions";
 import type { Catalogos } from "@/lib/catalogos";
 import {
   DIAS_SEMANA,

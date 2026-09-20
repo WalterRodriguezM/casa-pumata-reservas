@@ -171,7 +171,7 @@ export async function crearReserva(input: ReservaInput): Promise<ResultadoReserv
     return { ok: false, tipo: "error", mensaje: "No se pudo guardar la reserva. Intenta de nuevo.", huespedId };
   }
 
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -254,6 +254,6 @@ export async function actualizarReserva(
     return { ok: false, tipo: "error", mensaje: "No se pudieron guardar los cambios. Intenta de nuevo.", huespedId };
   }
 
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   return { ok: true };
 }

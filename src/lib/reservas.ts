@@ -50,24 +50,12 @@ type Fila = {
 
 const CANCELADA = 3;
 
-// Reservas no canceladas desde un año atrás (para poder ver el historial reciente).
-export async function reservasActivas(hoy: string): Promise<Reserva[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("reservas")
-    .select(
-      `id, huesped_id, origen_reserva_id, metodo_pago_id, estado_reserva_id, fecha_checkin, fecha_checkout, numero_huespedes, monto_total, monto_pagado, notas,
+const SELECT = `id, huesped_id, origen_reserva_id, metodo_pago_id, estado_reserva_id, fecha_checkin, fecha_checkout, numero_huespedes, monto_total, monto_pagado, notas,
        huespedes(nombre_completo, numero_documento, telefono, correo, tipos_documento(nombre)),
-       origenes_reserva(nombre), metodos_pago(nombre), estados_reserva(nombre)`,
-    )
-    .neq("estado_reserva_id", CANCELADA)
-    .gte("fecha_checkout", sumarDias(hoy, -365))
-    .order("fecha_checkin")
-    .overrideTypes<Fila[], { merge: false }>();
+       origenes_reserva(nombre), metodos_pago(nombre), estados_reserva(nombre)`;
 
-  if (error) throw new Error("No se pudieron cargar las reservas: " + error.message);
-
-  return data.map((f) => ({
+function mapear(f: Fila): Reserva {
+  return {
     id: f.id,
     huespedId: f.huesped_id,
     origenId: f.origen_reserva_id,
@@ -90,5 +78,50 @@ export async function reservasActivas(hoy: string): Promise<Reserva[]> {
       telefono: f.huespedes.telefono,
       correo: f.huespedes.correo,
     },
-  }));
+  };
+}
+
+// Reservas no canceladas desde un año atrás (para el calendario y el Home).
+export async function reservasActivas(hoy: string): Promise<Reserva[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("reservas")
+    .select(SELECT)
+    .neq("estado_reserva_id", CANCELADA)
+    .gte("fecha_checkout", sumarDias(hoy, -365))
+    .order("fecha_checkin")
+    .overrideTypes<Fila[], { merge: false }>();
+
+  if (error) throw new Error("No se pudieron cargar las reservas: " + error.message);
+  return data.map(mapear);
+}
+
+export const POR_PAGINA = 20;
+
+export type FiltrosReservas = {
+  q: string;
+  origenId: number | null;
+  estadoId: number | null;
+  pagina: number;
+};
+
+// Listado paginado con filtros, incluye canceladas. Más recientes primero.
+export async function listarReservas(f: FiltrosReservas) {
+  const supabase = await createClient();
+  const desde = (f.pagina - 1) * POR_PAGINA;
+  let query = supabase
+    .from("reservas")
+    .select(f.q ? SELECT.replace("huespedes(", "huespedes!inner(") : SELECT, { count: "exact" })
+    .order("fecha_checkin", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(desde, desde + POR_PAGINA - 1);
+
+  if (f.q) query = query.ilike("huespedes.nombre_completo", `%${f.q.replace(/[%_\\]/g, "\\$&")}%`);
+  if (f.origenId) query = query.eq("origen_reserva_id", f.origenId);
+  if (f.estadoId) query = query.eq("estado_reserva_id", f.estadoId);
+
+  const { data, error, count } = await query.overrideTypes<Fila[], { merge: false }>();
+  if (error) throw new Error("No se pudieron cargar las reservas: " + error.message);
+  const total = count ?? 0;
+  return { filas: data.map(mapear), total, paginas: Math.max(1, Math.ceil(total / POR_PAGINA)) };
 }

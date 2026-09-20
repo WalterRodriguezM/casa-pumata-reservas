@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { actualizarReserva } from "@/app/reservas/actions";
+import { actualizarReserva } from "@/app/(app)/reservas/actions";
 import { CamposDetalle, type Huesped } from "@/components/wizard-reserva";
 import type { Catalogos } from "@/lib/catalogos";
 import { diferenciaDias, formatoFecha } from "@/lib/fechas";

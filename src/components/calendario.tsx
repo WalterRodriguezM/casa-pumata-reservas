@@ -8,34 +8,28 @@ import {
   desdeIso,
   diferenciaDias,
   formatoFecha,
-  formatoPesos,
   sumarDias,
 } from "@/lib/fechas";
 import type { Reserva } from "@/lib/reservas";
 import type { Catalogos } from "@/lib/catalogos";
-import { EditarReserva } from "@/components/editar-reserva";
+import { ReservaModal } from "@/components/detalle-reserva";
 import { WizardReserva } from "@/components/wizard-reserva";
 
 type Props = {
   reservas: Reserva[];
   hoy: string;
   catalogos: Catalogos;
-  salir: () => Promise<void>;
 };
 
 type Rango = { a: string; b: string };
 
-export function Calendario({ reservas, hoy, catalogos, salir }: Props) {
+export function Calendario({ reservas, hoy, catalogos }: Props) {
   const inicio = desdeIso(hoy);
   const [vista, setVista] = useState({ y: inicio.getFullYear(), m: inicio.getMonth() });
   const [arrastre, setArrastre] = useState<Rango | null>(null);
   const [detalleId, setDetalleId] = useState<string | null>(null);
-  const [editando, setEditando] = useState(false);
   const detalle = reservas.find((x) => x.id === detalleId) ?? null;
-  const setDetalle = (x: Reserva | null) => {
-    setDetalleId(x?.id ?? null);
-    setEditando(false);
-  };
+  const setDetalle = (x: Reserva | null) => setDetalleId(x?.id ?? null);
   const [wizard, setWizard] = useState<{ a: string | null; b: string | null; clave: number } | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const arrastreRef = useRef<Rango | null>(null);
@@ -174,9 +168,6 @@ export function Calendario({ reservas, hoy, catalogos, salir }: Props) {
           <button className="btn primary" onClick={() => abrirWizard(null, null)}>
             + Nueva reserva
           </button>
-          <form action={salir}>
-            <button className="btn ghost">Salir</button>
-          </form>
         </div>
       </header>
 
@@ -244,19 +235,13 @@ export function Calendario({ reservas, hoy, catalogos, salir }: Props) {
         </div>
       </section>
 
-      {detalle && !editando && (
-        <DetalleReserva r={detalle} cerrar={() => setDetalle(null)} editar={() => setEditando(true)} />
-      )}
-      {detalle && editando && (
-        <EditarReserva
+      {detalle && (
+        <ReservaModal
           key={detalle.id}
           reserva={detalle}
           catalogos={catalogos}
-          volver={() => setEditando(false)}
-          guardada={(m) => {
-            setEditando(false);
-            mostrarAviso(m);
-          }}
+          cerrar={() => setDetalle(null)}
+          guardada={mostrarAviso}
         />
       )}
       {wizard && (
@@ -275,71 +260,5 @@ export function Calendario({ reservas, hoy, catalogos, salir }: Props) {
       )}
       {aviso && <div className="toast" role="status">{aviso}</div>}
     </>
-  );
-}
-
-function DetalleReserva({ r, cerrar, editar }: { r: Reserva; cerrar: () => void; editar: () => void }) {
-  const noches = diferenciaDias(r.checkin, r.checkout);
-  const saldo = r.montoTotal - r.montoPagado;
-  return (
-    <div
-      className="overlay"
-      onMouseDown={(e) => e.target === e.currentTarget && cerrar()}
-    >
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="det-titulo">
-        <div className="mh">
-          <h3 id="det-titulo">Reserva de {r.huesped.nombre}</h3>
-          <button className="btn ghost" onClick={cerrar} aria-label="Cerrar">
-            ✕
-          </button>
-        </div>
-        <div className="mb">
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <div className="chip">
-              {formatoFecha(r.checkin)} → {formatoFecha(r.checkout)} · <b>{noches} {noches === 1 ? "noche" : "noches"}</b> · {r.numeroHuespedes} huésp.
-            </div>
-            <span
-              className="chip"
-              style={{ background: r.estado === "Confirmada" ? "var(--occ)" : "var(--accent-soft)" }}
-            >
-              {r.estado}
-            </span>
-          </div>
-          <div className="guest">
-            <b>{r.huesped.nombre}</b>
-            <small>{r.huesped.documento}</small>
-            <small>{[r.huesped.telefono, r.huesped.correo].filter(Boolean).join(" · ") || "Sin contacto"}</small>
-          </div>
-          <dl>
-            <dt>Origen</dt>
-            <dd>{r.origen}</dd>
-            <dt>Método de pago</dt>
-            <dd>{r.metodoPago}</dd>
-            {r.notas && (
-              <>
-                <dt>Notas</dt>
-                <dd>{r.notas}</dd>
-              </>
-            )}
-          </dl>
-          <dl className="total">
-            <dt>Total</dt>
-            <dd>{formatoPesos(r.montoTotal)}</dd>
-            <dt>Pagado</dt>
-            <dd>{formatoPesos(r.montoPagado)}</dd>
-            <dt>Saldo pendiente</dt>
-            <dd style={{ color: saldo > 0 ? "var(--accent)" : "var(--ok)" }}>{formatoPesos(saldo)}</dd>
-          </dl>
-        </div>
-        <div className="mf">
-          <button className="btn" onClick={cerrar}>
-            Cerrar
-          </button>
-          <button className="btn primary" onClick={editar}>
-            Editar reserva
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
