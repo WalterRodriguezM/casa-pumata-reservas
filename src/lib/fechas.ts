@@ -32,3 +32,5 @@ export const formatoPesos = (n: number) => "$" + Number(n || 0).toLocaleString("
 // Hoy en Colombia, para que servidor y navegador coincidan.
 export const hoyColombia = () =>
   new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+
+export const formatoPesosSigno = (n: number) => (n < 0 ? "− " : "") + formatoPesos(Math.abs(n));

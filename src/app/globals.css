@@ -16,6 +16,10 @@
   --bad-ink: #7a1f14;
   --ok: #1f7a55;
   --ok-soft: #cfe9dc;
+  --ing: #0a86a0;
+  --gas: #c7811f;
+  --ing-soft: #d5ebf0;
+  --grid: #e3e9e7;
   --overlay: rgba(14, 28, 30, 0.55);
 }
 
@@ -36,6 +40,10 @@
     --bad-ink: #ffd3cc;
     --ok: #5cc796;
     --ok-soft: #1d4636;
+    --ing: #2a96b0;
+    --gas: #c98500;
+    --ing-soft: #173842;
+    --grid: #22343a;
     --overlay: rgba(0, 0, 0, 0.65);
   }
 }
@@ -955,4 +963,235 @@ table.edit td.acciones {
 }
 .sub b {
   color: var(--accent);
+}
+
+/* reportes */
+.sub-h {
+  font-size: 13px;
+  color: var(--muted);
+}
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+.kpi .t {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 500;
+}
+.kpi .v {
+  font: 700 26px/1.1 var(--font-display), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.kpi .n {
+  font-size: 12px;
+  color: var(--muted);
+}
+.kpi .v.pos {
+  color: var(--ok);
+}
+.kpi .v.neg {
+  color: var(--bad-ink);
+}
+.delta {
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.delta.bien {
+  color: var(--ok);
+}
+.delta.mal {
+  color: var(--bad-ink);
+}
+.delta.igual {
+  color: var(--muted);
+}
+.delta span {
+  font-weight: 400;
+  color: var(--muted);
+}
+.sw {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 6px;
+}
+.leyenda-serie {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.chart {
+  position: relative;
+}
+.chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.chart text {
+  fill: var(--muted);
+  font: 12px var(--font-body), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.chart .col:hover .hit {
+  fill: var(--ing-soft);
+  opacity: 0.45;
+}
+.tip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 10px 12px;
+  font-size: 13px;
+  min-width: 200px;
+  z-index: 5;
+}
+.tip b {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--font-display), system-ui, sans-serif;
+}
+.tip div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.dos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+@media (max-width: 860px) {
+  .dos {
+    grid-template-columns: 1fr;
+  }
+}
+.hb {
+  display: grid;
+  gap: 10px;
+}
+.hb-i {
+  display: grid;
+  grid-template-columns: 118px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.hb-i .l {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hb-i .b {
+  height: 14px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.hb-i .b i {
+  display: block;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+}
+.hb-i .n {
+  font-size: 13px;
+  text-align: right;
+  white-space: nowrap;
+}
+.hb-i .n small {
+  color: var(--muted);
+  margin-left: 6px;
+}
+tr.sel td {
+  background: var(--accent-soft);
+}
+tr.tot td {
+  font-weight: 700;
+  border-top: 2px solid var(--line);
+  border-bottom: 0;
+}
+td.neg {
+  color: var(--bad-ink);
+}
+.nota {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 10px 0 0;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink);
+  padding: 9px 0;
+  font-weight: 500;
+  flex: 0 0 auto !important;
+}
+.check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+.menu {
+  position: relative;
+}
+.menu summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-block;
+}
+.menu summary::-webkit-details-marker {
+  display: none;
+}
+.menu-l {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 6px;
+  min-width: 290px;
+  z-index: 8;
+  display: grid;
+}
+.menu-l a {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+}
+.menu-l a:hover {
+  background: var(--accent-soft);
+}
+.menu-l small {
+  color: var(--muted);
 }

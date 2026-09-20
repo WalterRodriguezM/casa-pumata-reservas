@@ -8,6 +8,7 @@ const ENLACES = [
   { href: "/calendario", texto: "Calendario" },
   { href: "/reservas", texto: "Reservas" },
   { href: "/gastos", texto: "Gastos" },
+  { href: "/reportes", texto: "Reportes" },
 ];
 
 export function Nav({ salir }: { salir: () => Promise<void> }) {
@@ -24,9 +25,6 @@ export function Nav({ salir }: { salir: () => Promise<void> }) {
               {e.texto}
             </Link>
           ))}
-          <span className="deshabilitado" aria-disabled="true" title="Llega con la Fase 5">
-            Reportes<small>Pronto</small>
-          </span>
         </div>
         <form action={salir}>
           <button className="salir">Salir</button>
