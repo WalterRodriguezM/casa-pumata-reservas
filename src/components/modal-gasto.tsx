@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { crearGasto } from "@/app/(app)/gastos/actions";
 import { useAviso } from "@/components/aviso";
 import type { Item } from "@/lib/catalogos";
@@ -21,8 +21,8 @@ export function BotonNuevoGasto(props: Props) {
         <ModalGasto
           {...props}
           cerrar={() => setAbierto(false)}
-          creado={(m) => {
-            setAbierto(false);
+          creado={(m, cerrar) => {
+            if (cerrar) setAbierto(false);
             mostrar(m);
           }}
         />
@@ -34,7 +34,7 @@ export function BotonNuevoGasto(props: Props) {
 
 function ModalGasto({
   categoriasCasa, cuentas, socios, hoy, cerrar, creado,
-}: Props & { cerrar: () => void; creado: (mensaje: string) => void }) {
+}: Props & { cerrar: () => void; creado: (mensaje: string, cerrar: boolean) => void }) {
   const efectivo = cuentas.find((c) => c.nombre === "Efectivo")?.id ?? cuentas[0]?.id ?? 0;
   const [tipo, setTipo] = useState<TipoGasto>("casa");
   const [fecha, setFecha] = useState(hoy);
@@ -45,8 +45,12 @@ function ModalGasto({
   const [descripcion, setDescripcion] = useState("");
   const [errores, setErrores] = useState<{ fecha?: string; monto?: string; socio?: string; categoria?: string; envio?: string }>({});
   const [enviando, iniciar] = useTransition();
+  const [ultimo, setUltimo] = useState<string | null>(null);
+  const primero = useRef<HTMLSelectElement>(null);
 
-  const guardar = () => {
+  // nuevo = true: guarda y deja el formulario abierto para registrar otro gasto.
+  const guardar = (nuevo: boolean) => {
+    setUltimo(null);
     const e = {
       fecha: fecha ? undefined : "Elige la fecha del gasto.",
       monto: Number(monto) > 0 ? undefined : "El monto debe ser mayor a 0.",
@@ -67,7 +71,16 @@ function ModalGasto({
       });
       if (r.ok) {
         const quien = tipo === "personal" ? ` · ${socios.find((s) => s.id === Number(socioId))?.nombre ?? "Por confirmar"}` : "";
-        creado(`Gasto registrado: ${tipo === "casa" ? "Casa" : "Personal"}${quien} · ${formatoPesos(Number(monto))}`);
+        const mensaje = `Gasto registrado: ${tipo === "casa" ? "Casa" : "Personal"}${quien} · ${formatoPesos(Number(monto))}`;
+        if (!nuevo) return creado(mensaje, true);
+        // Conserva tipo, fecha, socio y cuenta; limpia lo que cambia de un gasto a otro.
+        setMonto("");
+        setDescripcion("");
+        setCategoriaId("");
+        setErrores({});
+        setUltimo(mensaje);
+        creado(mensaje, false);
+        primero.current?.focus();
       } else setErrores({ envio: r.mensaje });
     });
   };
@@ -83,6 +96,7 @@ function ModalGasto({
         </div>
         <div className="mb">
           {errores.envio && <div className="alert" role="alert">{errores.envio}</div>}
+          {ultimo && !errores.envio && <div className="ok-msg" role="status">✔ {ultimo}. Puedes registrar otro.</div>}
           <div>
             <span className="ayuda" style={{ fontWeight: 500 }}>Tipo de gasto *</span>
             <div className="seg">
@@ -115,7 +129,7 @@ function ModalGasto({
           {tipo === "personal" ? (
             <label>
               Socio *
-              <select value={socioId} onChange={(e) => setSocioId(e.target.value)} className={errores.socio ? "invalid" : ""} autoFocus>
+              <select value={socioId} onChange={(e) => setSocioId(e.target.value)} className={errores.socio ? "invalid" : ""} ref={primero} autoFocus>
                 <option value="">Elige un socio…</option>
                 {socios.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -129,7 +143,7 @@ function ModalGasto({
           ) : (
             <label>
               Categoría *
-              <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} className={errores.categoria ? "invalid" : ""} autoFocus>
+              <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} className={errores.categoria ? "invalid" : ""} ref={primero} autoFocus>
                 <option value="">Elige una categoría…</option>
                 {categoriasCasa.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -165,7 +179,10 @@ function ModalGasto({
           <button className="btn" onClick={cerrar} disabled={enviando}>
             Cancelar
           </button>
-          <button className="btn primary" onClick={guardar} disabled={enviando}>
+          <button className="btn" onClick={() => guardar(true)} disabled={enviando}>
+            Guardar y nuevo
+          </button>
+          <button className="btn primary" onClick={() => guardar(false)} disabled={enviando}>
             {enviando ? "Guardando…" : "Guardar gasto"}
           </button>
         </div>

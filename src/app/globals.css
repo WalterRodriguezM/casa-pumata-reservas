@@ -1411,3 +1411,12 @@ td.neg {
   padding: 4px 0;
   font-variant-numeric: tabular-nums;
 }
+
+.ok-msg {
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-weight: 500;
+  font-size: 14px;
+}
