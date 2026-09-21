@@ -16,10 +16,10 @@ export default async function Home() {
   // Próximas: check-in de hoy en adelante, las 5 más cercanas.
   const proximas = reservas.filter((r) => r.checkin >= hoy).slice(0, 5);
 
-  // Ocupación: días del mes ocupados (check-in a check-out, ambos incluidos).
+  // Ocupación: noches del mes ocupadas (del check-in a la noche anterior al check-out).
   const ocupados = new Set<number>();
   for (const r of reservas) {
-    for (let d = r.checkin; d <= r.checkout; d = sumarDias(d, 1)) {
+    for (let d = r.checkin; d < r.checkout; d = sumarDias(d, 1)) {
       if (d.startsWith(mes)) ocupados.add(Number(d.slice(8)));
     }
   }
@@ -70,9 +70,9 @@ export default async function Home() {
               <h2>Ocupación de {MESES[m - 1]}</h2>
             </div>
             <div className="big">
-              {pct}%<small>{ocupados.size} de {diasMes} días</small>
+              {pct}%<small>{ocupados.size} de {diasMes} noches</small>
             </div>
-            <div className="strip" role="img" aria-label={`${ocupados.size} de ${diasMes} días ocupados`}>
+            <div className="strip" role="img" aria-label={`${ocupados.size} de ${diasMes} noches ocupadas`}>
               {Array.from({ length: diasMes }, (_, i) => i + 1).map((d) => (
                 <i key={d} className={`${ocupados.has(d) ? "o" : ""} ${d === Number(hoy.slice(8)) ? "h" : ""}`} title={`${d} de ${MESES[m - 1]}`} />
               ))}

@@ -54,7 +54,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
           d={comparar && <Delta cur={A.gastosTotal} ant={P?.gastosTotal} bueno={-1} etq={etqPrevio} />} />
         <Kpi t="Balance" v={(A.balance >= 0 ? "+ " : "") + pesos(A.balance)} n="Ingresos cobrados − gastos" tono={A.balance < 0 ? "neg" : "pos"}
           d={comparar && <Delta cur={A.balance} ant={P?.balance} bueno={1} etq={etqPrevio} />} />
-        <Kpi t="Ocupación" v={A.dias ? `${A.pct}%` : "—"} n={A.dias ? `${A.ocupados} de ${A.dias} días` : "Período sin días transcurridos"}
+        <Kpi t="Ocupación" v={A.dias ? `${A.pct}%` : "—"} n={A.dias ? `${A.ocupados} de ${A.dias} noches` : "Período sin noches transcurridas"}
           d={comparar && A.dias > 0 && <Delta cur={A.pct} ant={P?.pct} bueno={1} pp etq={etqPrevio} />} />
         <Kpi t="Por cobrar" v={pesos(A.porCobrar)} n="Saldo de las reservas del período"
           d={comparar && <Delta cur={A.porCobrar} ant={P?.porCobrar} bueno={0} etq={etqPrevio} />} />
@@ -169,7 +169,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
           </table>
         </div>
         <p className="nota">
-          Ocupación = días ocupados (check-in a check-out, ambos incluidos) sobre los días transcurridos del período.
+          Ocupación = noches ocupadas (del check-in a la noche anterior al check-out) sobre las noches transcurridas del período.
           Las reservas canceladas no cuentan.
         </p>
       </section>

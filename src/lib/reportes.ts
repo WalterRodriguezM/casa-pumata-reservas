@@ -23,7 +23,7 @@ export type Agregado = {
   balance: number;
   porCobrar: number;
   noches: number;
-  dias: number; // días del período transcurridos hasta hoy
+  dias: number; // noches del período transcurridas hasta hoy
   ocupados: number;
   pct: number;
 };
@@ -58,8 +58,8 @@ export function agregar(d: Datos, p: Periodo, hoy: string): Agregado {
   const ocupados = new Set<string>();
   for (const r of d.reservas) {
     const ini = r.checkin > p.desde ? r.checkin : p.desde;
-    const fi = r.checkout < fin ? r.checkout : fin;
-    for (let x = ini; x <= fi; x = sumarDias(x, 1)) ocupados.add(x);
+    // Noches [check-in, check-out): el día de check-out no cuenta.
+    for (let x = ini; x <= fin && x < r.checkout; x = sumarDias(x, 1)) ocupados.add(x);
   }
 
   return {
