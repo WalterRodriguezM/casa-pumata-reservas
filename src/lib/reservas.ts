@@ -28,7 +28,7 @@ type Fila = {
   id: string;
   huesped_id: string;
   origen_reserva_id: number;
-  metodo_pago_id: number;
+  metodo_pago_id: number | null;
   estado_reserva_id: number;
   fecha_checkin: string;
   fecha_checkout: string;
@@ -44,7 +44,7 @@ type Fila = {
     tipos_documento: { nombre: string } | null;
   };
   origenes_reserva: { nombre: string };
-  metodos_pago: { nombre: string };
+  metodos_pago: { nombre: string } | null;
   estados_reserva: { nombre: string };
 };
 
@@ -59,14 +59,14 @@ function mapear(f: Fila): Reserva {
     id: f.id,
     huespedId: f.huesped_id,
     origenId: f.origen_reserva_id,
-    metodoId: f.metodo_pago_id,
+    metodoId: f.metodo_pago_id ?? 0, // 0 = sin definir
     estadoId: f.estado_reserva_id,
     checkin: f.fecha_checkin,
     checkout: f.fecha_checkout,
     numeroHuespedes: f.numero_huespedes,
     estado: f.estados_reserva.nombre,
     origen: f.origenes_reserva.nombre,
-    metodoPago: f.metodos_pago.nombre,
+    metodoPago: f.metodos_pago?.nombre ?? "Sin definir",
     montoTotal: Number(f.monto_total),
     montoPagado: Number(f.monto_pagado),
     notas: f.notas,

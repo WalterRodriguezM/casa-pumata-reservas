@@ -239,7 +239,7 @@ export async function actualizarReserva(
     .update({
       huesped_id: huespedId,
       origen_reserva_id: input.origenId,
-      metodo_pago_id: input.metodoId,
+      metodo_pago_id: input.metodoId > 0 ? input.metodoId : null,
       estado_reserva_id: input.estadoId,
       monto_total: input.montoTotal,
       monto_pagado: input.montoPagado,

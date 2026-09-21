@@ -292,7 +292,7 @@ export function CamposDetalle(p: {
       <BuscadorHuesped catalogos={p.catalogos} huesped={p.huesped} setHuesped={p.setHuesped} />
       <div className="row">
         <Select id="origen" label="Origen de la reserva" valor={p.origenId} setValor={p.setOrigenId} items={p.catalogos.origenes} />
-        <Select id="metodo" label="Método de pago" valor={p.metodoId} setValor={p.setMetodoId} items={p.catalogos.metodos} />
+        <Select id="metodo" label="Método de pago" valor={p.metodoId} setValor={p.setMetodoId} items={p.metodoId === 0 ? [{ id: 0, nombre: "Sin definir" }, ...p.catalogos.metodos] : p.catalogos.metodos} />
       </div>
       <div className="row">
         <Select id="estado" label="Estado" valor={p.estadoId} setValor={p.setEstadoId} items={p.estados} />
