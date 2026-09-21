@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { ChipEstado } from "@/components/chip-estado";
-import { MESES, diferenciaDias, formatoFecha, formatoPesos, hoyColombia, sumarDias } from "@/lib/fechas";
+import { ProximasReservas } from "@/components/proximas-reservas";
+import { cargarCatalogos } from "@/lib/catalogos";
+import { MESES, formatoPesos, hoyColombia, sumarDias } from "@/lib/fechas";
 import { sumaGastosMes } from "@/lib/gastos";
 import { reservasActivas } from "@/lib/reservas";
-
-const MESES_CORTOS = MESES.map((m) => m.slice(0, 3));
 
 export default async function Home() {
   const hoy = hoyColombia();
@@ -12,7 +11,7 @@ export default async function Home() {
   const [y, m] = mes.split("-").map(Number);
   const diasMes = new Date(y, m, 0).getDate();
 
-  const [reservas, gastos] = await Promise.all([reservasActivas(hoy), sumaGastosMes(mes)]);
+  const [reservas, gastos, catalogos] = await Promise.all([reservasActivas(hoy), sumaGastosMes(mes), cargarCatalogos()]);
 
   // Próximas: check-in de hoy en adelante, las 5 más cercanas.
   const proximas = reservas.filter((r) => r.checkin >= hoy).slice(0, 5);
@@ -61,35 +60,7 @@ export default async function Home() {
                 Ver todas
               </Link>
             </div>
-            {proximas.length === 0 ? (
-              <p className="vacio">No hay reservas próximas.</p>
-            ) : (
-              <div className="prox">
-                {proximas.map((r) => {
-                  const d = r.checkin.split("-");
-                  const noches = diferenciaDias(r.checkin, r.checkout);
-                  const saldo = r.montoTotal - r.montoPagado;
-                  return (
-                    <div key={r.id} className="prox-i">
-                      <div className="fecha">
-                        <b>{Number(d[2])}</b>
-                        <span>{MESES_CORTOS[Number(d[1]) - 1]}</span>
-                      </div>
-                      <div>
-                        <div className="n">{r.huesped.nombre}</div>
-                        <div className="d">
-                          {formatoFecha(r.checkin)} → {formatoFecha(r.checkout)} · {noches} {noches === 1 ? "noche" : "noches"} · {r.numeroHuespedes} pers.
-                        </div>
-                      </div>
-                      <div className="der">
-                        <ChipEstado estado={r.estado} />
-                        <span className="saldo">{saldo > 0 ? <>Saldo <b>{formatoPesos(saldo)}</b></> : "Pagada"}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <ProximasReservas reservas={proximas} catalogos={catalogos} />
           </section>
         </div>
 

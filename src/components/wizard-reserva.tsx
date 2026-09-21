@@ -46,6 +46,8 @@ export type Huesped = {
 };
 
 const soloDigitos = (v: string) => v.replace(/\D/g, "");
+const contacto = (h: { telefono: string; correo: string }) =>
+  [h.telefono, h.correo].filter(Boolean).join(" · ") || "Sin datos de contacto";
 
 export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, creada }: Props) {
   const router = useRouter();
@@ -221,7 +223,7 @@ export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, crea
                 <dt>Huésped principal</dt>
                 <dd>{huesped.nombre}{huesped.nuevo ? " (nuevo)" : ""}</dd>
                 <dt>Contacto</dt>
-                <dd>{huesped.telefono} · {huesped.correo}</dd>
+                <dd>{contacto(huesped)}</dd>
                 <dt>Documento</dt>
                 <dd>{huesped.documento}</dd>
                 <dt>Origen</dt>
@@ -265,6 +267,7 @@ export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, crea
 
 /* ---------- Campos del Paso 2 (compartidos con la edición) ---------- */
 export function CamposDetalle(p: {
+  editando?: boolean;
   catalogos: Catalogos;
   estados: { id: number; nombre: string }[];
   huesped: Huesped | null;
@@ -297,7 +300,7 @@ export function CamposDetalle(p: {
       <div className="row">
         <Select id="estado" label="Estado" valor={p.estadoId} setValor={p.setEstadoId} items={p.estados} />
         <label>
-          Monto total *
+          Costo total de la reserva *
           <input
             id="total"
             inputMode="numeric"
@@ -316,7 +319,7 @@ export function CamposDetalle(p: {
       )}
       <div className="row">
         <label>
-          Monto pagado (opcional)
+          {p.editando ? "Total pagado (solo para corregir)" : "Abono (opcional)"}
           <input
             id="pagado"
             inputMode="numeric"
@@ -325,19 +328,26 @@ export function CamposDetalle(p: {
             className={errPagado ? "invalid" : ""}
           />
           {errPagado && <small className="err">{errPagado}</small>}
+          {!errPagado && nTotal > 0 && (
+            <small className="ayuda" style={{ margin: 0 }}>
+              Saldo pendiente: <b>{formatoPesos(nTotal - nPagado)}</b>
+            </small>
+          )}
         </label>
-        <div style={{ display: "flex", alignItems: "end" }}>
-          <button type="button" className="btn" onClick={() => p.setPagado(p.total || "0")}>
-            Pagó el total
-          </button>
-        </div>
+        {!p.editando && (
+          <div style={{ display: "flex", alignItems: "end" }}>
+            <button type="button" className="btn" onClick={() => p.setPagado(p.total || "0")} title="Copia el costo total en «Abono»">
+              Ya pagó todo
+            </button>
+          </div>
+        )}
       </div>
       <label>
         Notas (opcional)
         <textarea id="notas" value={p.notas} onChange={(e) => p.setNotas(e.target.value)} />
       </label>
       <small className="ayuda">
-        * Obligatorio. Para continuar se requiere huésped (nombre, teléfono y correo) y monto total.
+        * Obligatorio. Para continuar se requiere huésped (con su nombre) y monto total.
       </small>
     </>
   );
@@ -531,7 +541,7 @@ function BuscadorHuesped({
         <div className="guest">
           <b>{huesped.nombre}{huesped.nuevo ? " (nuevo)" : ""}</b>
           <small>{huesped.documento}</small>
-          <small>{huesped.telefono} · {huesped.correo}</small>
+          <small>{contacto(huesped)}</small>
           <div>
             <button className="btn ghost" style={{ padding: "6px 0" }} onClick={() => { setHuesped(null); setQ(""); setCreando(false); }}>
               Cambiar huésped
@@ -566,8 +576,8 @@ function BuscadorHuesped({
                   id: h.id,
                   nombre: h.nombre,
                   documento: h.documento,
-                  telefono: h.telefono ?? "—",
-                  correo: h.correo ?? "—",
+                  telefono: h.telefono ?? "",
+                  correo: h.correo ?? "",
                 })
               }
             >
@@ -673,12 +683,12 @@ function FormularioHuesped({
       </div>
       <div className="row">
         <label>
-          Teléfono * (solo números)
+          Teléfono (opcional, solo números)
           <input id="n-tel" inputMode="numeric" maxLength={15} value={tel} onChange={(e) => setTel(soloDigitos(e.target.value))} onBlur={() => tocar("tel")} className={ver("tel") ? "invalid" : ""} />
           {ver("tel") && <small className="err">{ver("tel")}</small>}
         </label>
         <label>
-          Correo *
+          Correo (opcional)
           <input id="n-correo" type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} onBlur={() => tocar("correo")} className={ver("correo") ? "invalid" : ""} />
           {ver("correo") && <small className="err">{ver("correo")}</small>}
         </label>

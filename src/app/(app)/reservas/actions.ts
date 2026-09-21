@@ -128,8 +128,8 @@ export async function crearReserva(input: ReservaInput): Promise<ResultadoReserv
         nombre_completo: n.nombre.trim(),
         tipo_documento_id: tieneDoc ? n.tipoDocumentoId : null,
         numero_documento: tieneDoc ? n.numeroDocumento.trim() : null,
-        telefono: n.telefono.trim(),
-        correo: n.correo.trim(),
+        telefono: n.telefono.trim() || null,
+        correo: n.correo.trim() || null,
         genero_id: n.generoId,
       })
       .select("id")
@@ -220,8 +220,8 @@ export async function actualizarReserva(
         nombre_completo: n.nombre.trim(),
         tipo_documento_id: tieneDoc ? n.tipoDocumentoId : null,
         numero_documento: tieneDoc ? n.numeroDocumento.trim() : null,
-        telefono: n.telefono.trim(),
-        correo: n.correo.trim(),
+        telefono: n.telefono.trim() || null,
+        correo: n.correo.trim() || null,
         genero_id: n.generoId,
       })
       .select("id")
@@ -253,6 +253,45 @@ export async function actualizarReserva(
       return { ok: false, tipo: "conflicto", mensaje: "No se puede reactivar: otra reserva ocupa esas fechas.", huespedId };
     return { ok: false, tipo: "error", mensaje: "No se pudieron guardar los cambios. Intenta de nuevo.", huespedId };
   }
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+// Suma un abono al total pagado. No guarda historial: solo el acumulado.
+export async function registrarAbono(reservaId: string, monto: number): Promise<ResultadoReserva> {
+  if (!(monto > 0)) return { ok: false, tipo: "validacion", mensaje: "El abono debe ser mayor a 0." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, tipo: "error", mensaje: "Tu sesión expiró. Vuelve a iniciar sesión." };
+
+  const { data, error } = await supabase
+    .from("reservas")
+    .select("monto_total, monto_pagado, estado_reserva_id")
+    .eq("id", reservaId)
+    .single();
+  if (error || !data) return { ok: false, tipo: "error", mensaje: "No se encontró la reserva." };
+  if (data.estado_reserva_id === 3)
+    return { ok: false, tipo: "validacion", mensaje: "No se pueden registrar abonos en una reserva cancelada." };
+
+  const total = Number(data.monto_total);
+  const pagado = Number(data.monto_pagado);
+  if (monto > total - pagado)
+    return { ok: false, tipo: "validacion", mensaje: "El abono no puede superar el saldo pendiente." };
+
+  // Solo actualiza si nadie cambió el pagado mientras tanto.
+  const { data: fila, error: errUp } = await supabase
+    .from("reservas")
+    .update({ monto_pagado: pagado + monto })
+    .eq("id", reservaId)
+    .eq("monto_pagado", data.monto_pagado)
+    .select("id");
+  if (errUp) return { ok: false, tipo: "error", mensaje: "No se pudo registrar el abono. Intenta de nuevo." };
+  if (!fila || fila.length === 0)
+    return { ok: false, tipo: "error", mensaje: "La reserva cambió mientras registrabas el abono. Ábrela de nuevo e inténtalo otra vez." };
 
   revalidatePath("/", "layout");
   return { ok: true };

@@ -20,8 +20,8 @@ export function EditarReserva({ reserva: r, catalogos, volver, guardada }: Props
     id: r.huespedId,
     nombre: r.huesped.nombre,
     documento: r.huesped.documento,
-    telefono: r.huesped.telefono ?? "—",
-    correo: r.huesped.correo ?? "—",
+    telefono: r.huesped.telefono ?? "",
+    correo: r.huesped.correo ?? "",
   });
   const [origenId, setOrigenId] = useState(r.origenId);
   const [metodoId, setMetodoId] = useState(r.metodoId);
@@ -78,6 +78,7 @@ export function EditarReserva({ reserva: r, catalogos, volver, guardada }: Props
             </div>
           )}
           <CamposDetalle
+            editando
             catalogos={catalogos}
             estados={catalogos.estadosTodos}
             huesped={huesped}

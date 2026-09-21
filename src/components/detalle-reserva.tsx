@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { registrarAbono } from "@/app/(app)/reservas/actions";
 import { ChipEstado } from "@/components/chip-estado";
 import { EditarReserva } from "@/components/editar-reserva";
 import type { Catalogos } from "@/lib/catalogos";
@@ -30,10 +31,10 @@ export function ReservaModal({ reserva, catalogos, cerrar, guardada }: Props) {
       />
     );
   }
-  return <DetalleReserva r={reserva} cerrar={cerrar} editar={() => setEditando(true)} />;
+  return <DetalleReserva r={reserva} cerrar={cerrar} editar={() => setEditando(true)} abonado={guardada} />;
 }
 
-function DetalleReserva({ r, cerrar, editar }: { r: Reserva; cerrar: () => void; editar: () => void }) {
+function DetalleReserva({ r, cerrar, editar, abonado }: { r: Reserva; cerrar: () => void; editar: () => void; abonado: (mensaje: string) => void }) {
   const noches = diferenciaDias(r.checkin, r.checkout);
   const saldo = r.montoTotal - r.montoPagado;
   return (
@@ -77,6 +78,7 @@ function DetalleReserva({ r, cerrar, editar }: { r: Reserva; cerrar: () => void;
             <dt>Saldo pendiente</dt>
             <dd style={{ color: saldo > 0 ? "var(--accent)" : "var(--ok)" }}>{formatoPesos(saldo)}</dd>
           </dl>
+          {saldo > 0 && r.estado !== "Cancelada" && <FormularioAbono r={r} saldo={saldo} abonado={abonado} />}
         </div>
         <div className="mf">
           <button className="btn" onClick={cerrar}>
@@ -86,6 +88,73 @@ function DetalleReserva({ r, cerrar, editar }: { r: Reserva; cerrar: () => void;
             Editar reserva
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function FormularioAbono({ r, saldo, abonado }: { r: Reserva; saldo: number; abonado: (mensaje: string) => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const [monto, setMonto] = useState("");
+  const [error, setError] = useState("");
+  const [enviando, iniciar] = useTransition();
+  const n = Number(monto) || 0;
+
+  if (!abierto) {
+    return (
+      <div>
+        <button className="btn" onClick={() => setAbierto(true)}>
+          + Registrar abono
+        </button>
+      </div>
+    );
+  }
+
+  const guardar = () => {
+    if (!(n > 0)) return setError("El abono debe ser mayor a 0.");
+    if (n > saldo) return setError("El abono no puede superar el saldo pendiente.");
+    setError("");
+    iniciar(async () => {
+      const res = await registrarAbono(r.id, n);
+      if (res.ok) {
+        setAbierto(false);
+        setMonto("");
+        abonado(`Abono registrado: ${formatoPesos(n)}`);
+      } else setError(res.mensaje);
+    });
+  };
+
+  return (
+    <div className="abono">
+      <label>
+        Monto del abono
+        <input
+          inputMode="numeric"
+          placeholder="Solo números"
+          value={monto}
+          autoFocus
+          onChange={(e) => {
+            setMonto(e.target.value.replace(/\D/g, ""));
+            setError("");
+          }}
+          onKeyDown={(e) => e.key === "Enter" && guardar()}
+          className={error ? "invalid" : ""}
+        />
+        {error && <small className="err">{error}</small>}
+      </label>
+      <div className="abono-info">
+        <button type="button" className="btn" onClick={() => (setMonto(String(saldo)), setError(""))}>
+          Pagó el saldo ({formatoPesos(saldo)})
+        </button>
+        {n > 0 && n <= saldo && <span>Nuevo saldo: <b>{formatoPesos(saldo - n)}</b></span>}
+      </div>
+      <div className="abono-acciones">
+        <button className="btn" onClick={() => (setAbierto(false), setMonto(""), setError(""))} disabled={enviando}>
+          Cancelar
+        </button>
+        <button className="btn primary" onClick={guardar} disabled={enviando}>
+          {enviando ? "Guardando…" : "Guardar abono"}
+        </button>
       </div>
     </div>
   );

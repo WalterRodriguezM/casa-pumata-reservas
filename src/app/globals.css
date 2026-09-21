@@ -1195,3 +1195,39 @@ td.neg {
 .menu-l small {
   color: var(--muted);
 }
+
+.prox-i.click {
+  cursor: pointer;
+  border-radius: 8px;
+  padding-inline: 8px;
+  margin-inline: -8px;
+}
+.prox-i.click:hover,
+.prox-i.click:focus-visible {
+  background: var(--accent-soft);
+}
+
+.abono {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--bg);
+}
+.abono-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.abono-info b {
+  color: var(--ink);
+}
+.abono-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
