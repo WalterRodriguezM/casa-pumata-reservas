@@ -9,6 +9,7 @@ import {
   type HuespedResumen,
 } from "@/app/(app)/reservas/actions";
 import type { Catalogos } from "@/lib/catalogos";
+import { fondoCelda, type Ocupacion } from "@/lib/ocupacion";
 import {
   DIAS_SEMANA,
   MESES,
@@ -17,7 +18,6 @@ import {
   diferenciaDias,
   formatoFecha,
   formatoPesos,
-  sumarDias,
 } from "@/lib/fechas";
 import {
   MAX_HUESPEDES,
@@ -30,7 +30,7 @@ import {
 type Props = {
   catalogos: Catalogos;
   hoy: string;
-  ocupado: (d: string) => boolean;
+  ocupacion: Ocupacion;
   inicial: { a: string | null; b: string | null };
   cerrar: () => void;
   creada: (mensaje: string) => void;
@@ -47,7 +47,7 @@ export type Huesped = {
 
 const soloDigitos = (v: string) => v.replace(/\D/g, "");
 
-export function WizardReserva({ catalogos, hoy, ocupado, inicial, cerrar, creada }: Props) {
+export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, creada }: Props) {
   const router = useRouter();
   const precargado = !!(inicial.a && inicial.b);
   const [paso, setPaso] = useState<1 | 2 | 3>(precargado ? 2 : 1);
@@ -141,7 +141,7 @@ export function WizardReserva({ catalogos, hoy, ocupado, inicial, cerrar, creada
         {paso === 1 && (
           <PasoFechas
             hoy={hoy}
-            ocupado={ocupado}
+            ocupacion={ocupacion}
             rango={rango}
             pick={pick}
             setPick={setPick}
@@ -373,10 +373,10 @@ function Select({
 
 /* ---------- Paso 1 ---------- */
 function PasoFechas({
-  hoy, ocupado, rango, pick, setPick, setRango, numHuespedes, setNumHuespedes, conflicto, cancelar, siguiente,
+  hoy, ocupacion, rango, pick, setPick, setRango, numHuespedes, setNumHuespedes, conflicto, cancelar, siguiente,
 }: {
   hoy: string;
-  ocupado: (d: string) => boolean;
+  ocupacion: Ocupacion;
   rango: { a: string; b: string } | null;
   pick: string | null;
   setPick: (d: string | null) => void;
@@ -391,12 +391,8 @@ function PasoFechas({
   const [vista, setVista] = useState({ y: ref.getFullYear(), m: ref.getMonth() });
   const [hover, setHover] = useState<string | null>(null);
 
-  const libre = (d: string) => d >= hoy && !ocupado(d);
-  const rangoValido = (a: string, b: string) => {
-    if (!(a < b) || a < hoy) return false;
-    for (let d = a; d <= b; d = sumarDias(d, 1)) if (ocupado(d)) return false;
-    return true;
-  };
+  const libre = (d: string) => d >= hoy && !ocupacion.nocheOcupada(d);
+  const rangoValido = (a: string, b: string) => ocupacion.rangoValido(a, b, hoy);
 
   const clic = (d: string) => {
     if (!pick) {
@@ -433,10 +429,10 @@ function PasoFechas({
     for (let dia = 1; dia <= dias; dia++) {
       const d = aIso(new Date(vista.y, vista.m, dia));
       let cls = "cell";
-      if (ocupado(d)) cls += " ocupada";
+      const fondo = fondoCelda(ocupacion, d);
       if (d === hoy) cls += " hoy";
       if (d < hoy) cls += " pasada";
-      else if (!ocupado(d)) cls += " libre-hover";
+      else if (!fondo) cls += " libre-hover";
       if (prev) {
         if (prev.a < prev.b) {
           if (d >= prev.a && d < prev.b) cls += prevValido ? " sel" : " bad";
@@ -444,14 +440,14 @@ function PasoFechas({
         } else if (d === prev.a) cls += " sel-end";
       }
       out.push(
-        <div key={d} className={cls} data-d={d} onClick={() => clic(d)} onPointerEnter={() => pick && setHover(d)}>
+        <div key={d} className={cls} data-d={d} style={fondo ? { backgroundImage: fondo } : undefined} onClick={() => clic(d)} onPointerEnter={() => pick && setHover(d)}>
           <span className="n">{dia}</span>
         </div>,
       );
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vista, ocupado, prev?.a, prev?.b, prevValido, pick, hover, hoy]);
+  }, [vista, ocupacion, prev?.a, prev?.b, prevValido, pick, hover, hoy]);
 
   return (
     <>

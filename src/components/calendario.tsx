@@ -8,8 +8,8 @@ import {
   desdeIso,
   diferenciaDias,
   formatoFecha,
-  sumarDias,
 } from "@/lib/fechas";
+import { crearOcupacion, fondoCelda } from "@/lib/ocupacion";
 import type { Reserva } from "@/lib/reservas";
 import type { Catalogos } from "@/lib/catalogos";
 import { ReservaModal } from "@/components/detalle-reserva";
@@ -35,23 +35,9 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
   const arrastreRef = useRef<Rango | null>(null);
   const avisoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const reservaEn = useMemo(() => {
-    const mapa = new Map<string, Reserva>();
-    for (const r of reservas) {
-      for (let d = r.checkin; d <= r.checkout; d = sumarDias(d, 1)) mapa.set(d, r);
-    }
-    return mapa;
-  }, [reservas]);
-
-  const ocupado = (d: string) => reservaEn.has(d);
+  const ocup = useMemo(() => crearOcupacion(reservas), [reservas]);
   const esPasada = (d: string) => d < hoy;
-
-  // Todo el rango, check-out incluido, debe estar libre y no ser pasado.
-  const rangoValido = (a: string, b: string) => {
-    if (!(a < b) || esPasada(a)) return false;
-    for (let d = a; d <= b; d = sumarDias(d, 1)) if (ocupado(d)) return false;
-    return true;
-  };
+  const rangoValido = (a: string, b: string) => ocup.rangoValido(a, b, hoy);
 
   const mostrarAviso = (t: string) => {
     setAviso(t);
@@ -93,6 +79,12 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
   const diaDe = (e: React.PointerEvent | React.MouseEvent) =>
     (e.target as HTMLElement).closest<HTMLElement>("[data-d]")?.dataset.d ?? null;
 
+  // Mitad de la celda donde se hizo clic: izquierda = mañana, derecha = noche.
+  const mitadDe = (e: React.PointerEvent | React.MouseEvent): "L" | "R" => {
+    const caja = (e.target as HTMLElement).closest<HTMLElement>("[data-d]")!.getBoundingClientRect();
+    return e.clientX - caja.left < caja.width / 2 ? "L" : "R";
+  };
+
   const cambiarMes = (n: number) =>
     setVista((v) => {
       const d = new Date(v.y, v.m + n, 1);
@@ -115,12 +107,12 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
   for (let dia = 1; dia <= diasMes; dia++) {
     const d = aIso(new Date(vista.y, vista.m, dia));
     const dow = (relleno + dia - 1) % 7;
-    const res = reservaEn.get(d);
+    const res = ocup.noche.get(d);
+    const fondo = fondoCelda(ocup, d);
     let cls = "cell";
-    if (res) cls += " ocupada";
     if (d === hoy) cls += " hoy";
     if (esPasada(d)) cls += " pasada";
-    else if (!res && !prev) cls += " libre-hover";
+    else if (!fondo && !prev) cls += " libre-hover";
     if (prev) {
       if (prev.a < prev.b) {
         if (d >= prev.a && d < prev.b) cls += prevValido ? " sel" : " bad";
@@ -129,7 +121,7 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
     }
     let etiqueta = null;
     if (res && (res.checkin === d || dow === 0)) {
-      const tramo = Math.min(diferenciaDias(d, res.checkout) + 1, 7 - dow);
+      const tramo = Math.min(diferenciaDias(d, res.checkout), 7 - dow);
       etiqueta = (
         <span className="lbl" style={{ maxWidth: `calc(${tramo * 100}% - 10px)` }}>
           {res.huesped.nombre}
@@ -137,7 +129,7 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
       );
     }
     celdas.push(
-      <div key={d} className={cls} data-d={d}>
+      <div key={d} className={cls} data-d={d} style={fondo ? { backgroundImage: fondo } : undefined}>
         <span className="n">{dia}</span>
         {etiqueta}
       </div>,
@@ -201,7 +193,8 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
           className="grid"
           onPointerDown={(e) => {
             const d = diaDe(e);
-            if (!d || e.pointerType !== "mouse" || ocupado(d) || esPasada(d)) return;
+            if (!d || e.pointerType !== "mouse" || ocup.nocheOcupada(d) || esPasada(d)) return;
+            if (ocup.enMitad(d, mitadDe(e))) return; // clic sobre una reserva: abre el detalle
             e.preventDefault();
             fijarArrastre({ a: d, b: d });
           }}
@@ -213,7 +206,11 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
           onClick={(e) => {
             const d = diaDe(e);
             if (!d) return;
-            const res = reservaEn.get(d);
+            const mitad = mitadDe(e);
+            // Clic sobre una reserva: abre su detalle. En una celda de relevo decide la mitad.
+            const res =
+              ocup.enMitad(d, mitad) ??
+              (mitad === "L" ? ocup.noche.get(d) : undefined); // mitad libre del día de check-in
             if (res) return setDetalle(res);
             // Toque en pantalla táctil: abre el wizard en el Paso 1 con ese check-in.
             if ((e.nativeEvent as PointerEvent).pointerType !== "mouse" && !esPasada(d)) {
@@ -226,7 +223,9 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
 
         <div className="status">{estado()}</div>
         <div className="legend">
-          <span><i style={{ background: "var(--occ)" }} />Ocupada (incluye el día de check-out, por el aseo)</span>
+          <span><i style={{ background: "var(--occ)" }} />Ocupada</span>
+          <span><i style={{ background: "linear-gradient(90deg,var(--occ) 50%,transparent 50%)" }} />Check-out (libre desde la tarde)</span>
+          <span><i style={{ background: "linear-gradient(90deg,transparent 50%,var(--occ) 50%)" }} />Check-in</span>
           <span><i style={{ background: "var(--sel)" }} />Selección</span>
           <span>
             <i style={{ background: "repeating-linear-gradient(135deg,transparent 0 4px,var(--line) 4px 5px)" }} />
@@ -249,7 +248,7 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
           key={wizard.clave}
           catalogos={catalogos}
           hoy={hoy}
-          ocupado={ocupado}
+          ocupacion={ocup}
           inicial={{ a: wizard.a, b: wizard.b }}
           cerrar={() => setWizard(null)}
           creada={(m) => {
