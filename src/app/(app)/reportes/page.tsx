@@ -1,9 +1,11 @@
 import { Suspense } from "react";
+import Link from "next/link";
+import { VistaCuadre } from "@/components/cuadre";
 import { FiltrosReportes } from "@/components/filtros-reportes";
 import { GraficoMeses, type MesGrafico } from "@/components/grafico-meses";
 import { MESES, formatoPesosSigno as pesos, hoyColombia } from "@/lib/fechas";
 import {
-  agregar, cargarDatos, etiquetaPeriodo, gastosPorCategoria, ingresosPorOrigen, leerFiltros,
+  agregar, calcularCuadre, cargarDatos, cargarSocios, etiquetaPeriodo, gastosPorCategoria, ingresosPorOrigen, leerFiltros,
   periodo, periodoAnterior, primerAnioConDatos, type Busqueda,
 } from "@/lib/reportes";
 
@@ -11,7 +13,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export default async function ReportesPage({ searchParams }: { searchParams: Promise<Busqueda> }) {
   const hoy = hoyColombia();
-  const { anio, mes, comparar } = leerFiltros(await searchParams, hoy);
+  const { anio, mes, comparar, vista } = leerFiltros(await searchParams, hoy);
   const anioActual = Number(hoy.slice(0, 4));
 
   const [datos, primerAnio] = await Promise.all([cargarDatos(anio), primerAnioConDatos()]);
@@ -21,6 +23,31 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
 
   const A = agregar(datos, periodo(anio, mes), hoy);
   const etq = cap(etiquetaPeriodo(anio, mes));
+  const hrefVista = (v: "resumen" | "cuadre") => `/reportes?anio=${anio}&mes=${mes}${v === "cuadre" ? "&vista=cuadre" : ""}`;
+  const pestanas = (
+    <div className="tabs" role="tablist">
+      <Link role="tab" aria-selected={vista === "resumen"} href={hrefVista("resumen")}>Resumen</Link>
+      <Link role="tab" aria-selected={vista === "cuadre"} href={hrefVista("cuadre")}>Cuadre por socio</Link>
+    </div>
+  );
+  if (vista === "cuadre") {
+    const socios = await cargarSocios();
+    const cuadre = calcularCuadre(datos, periodo(anio, mes), hoy, socios);
+    return (
+      <div className="wrap estrecho">
+        <header className="topbar">
+          <h1>
+            <small>Análisis</small>Reportes
+          </h1>
+          <Suspense>
+            <FiltrosReportes anios={anios} anio={anio} mes={mes} comparar={false} soloPeriodo />
+          </Suspense>
+        </header>
+        {pestanas}
+        <VistaCuadre c={cuadre} etq={etq} />
+      </div>
+    );
+  }
 
   const previo = comparar ? periodoAnterior(anio, mes) : null;
   // Hay período anterior si termina en o después del primer año con datos.
@@ -46,13 +73,14 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
           <FiltrosReportes anios={anios} anio={anio} mes={mes} comparar={comparar} />
         </Suspense>
       </header>
+      {pestanas}
 
       <section className="kpis" aria-label="Resumen del período">
         <Kpi t="Ingresos cobrados" v={pesos(A.ingresos)} n={`${A.reservas.length} reservas con check-in en el período`}
           d={comparar && <Delta cur={A.ingresos} ant={P?.ingresos} bueno={1} etq={etqPrevio} />} />
-        <Kpi t="Gastos" v={pesos(A.gastosTotal)} n={`${A.gastos.length} gastos registrados`}
+        <Kpi t="Gastos de la casa" v={pesos(A.gastosTotal)} n={`${A.gastos.length} gastos registrados`}
           d={comparar && <Delta cur={A.gastosTotal} ant={P?.gastosTotal} bueno={-1} etq={etqPrevio} />} />
-        <Kpi t="Balance" v={(A.balance >= 0 ? "+ " : "") + pesos(A.balance)} n="Ingresos cobrados − gastos" tono={A.balance < 0 ? "neg" : "pos"}
+        <Kpi t="Utilidad" v={(A.balance >= 0 ? "+ " : "") + pesos(A.balance)} n="Ingresos cobrados − gastos de la casa" tono={A.balance < 0 ? "neg" : "pos"}
           d={comparar && <Delta cur={A.balance} ant={P?.balance} bueno={1} etq={etqPrevio} />} />
         <Kpi t="Ocupación" v={A.dias ? `${A.pct}%` : "—"} n={A.dias ? `${A.ocupados} de ${A.dias} noches` : "Período sin noches transcurridas"}
           d={comparar && A.dias > 0 && <Delta cur={A.pct} ant={P?.pct} bueno={1} pp etq={etqPrevio} />} />

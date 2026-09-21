@@ -7,9 +7,12 @@ import type { Item } from "@/lib/catalogos";
 import { formatoFecha, formatoPesos } from "@/lib/fechas";
 import type { Gasto } from "@/lib/gastos";
 
-type Campo = "fecha" | "categoria" | "monto" | "descripcion";
+type Campo = "fecha" | "tipo" | "socio" | "categoria" | "cuenta" | "monto" | "descripcion";
+const CAMPOS: Campo[] = ["fecha", "tipo", "socio", "categoria", "cuenta", "monto", "descripcion"];
 
-export function TablaGastos({ filas, categorias }: { filas: Gasto[]; categorias: Item[] }) {
+type Props = { filas: Gasto[]; categoriasCasa: Item[]; cuentas: Item[]; socios: Item[] };
+
+export function TablaGastos({ filas, categoriasCasa, cuentas, socios }: Props) {
   const [editando, setEditando] = useState<{ id: string; campo: Campo } | null>(null);
   const [confirmando, setConfirmando] = useState<string | null>(null);
   const [aviso, mostrar] = useAviso();
@@ -27,11 +30,14 @@ export function TablaGastos({ filas, categorias }: { filas: Gasto[]; categorias:
   return (
     <>
       <div className="tabla">
-        <table className="edit">
+        <table className="edit" style={{ minWidth: 980 }}>
           <thead>
             <tr>
               <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Socio</th>
               <th>Categoría</th>
+              <th>Se pagó con</th>
               <th className="r">Monto</th>
               <th>Descripción</th>
               <th aria-label="Acciones" />
@@ -40,12 +46,14 @@ export function TablaGastos({ filas, categorias }: { filas: Gasto[]; categorias:
           <tbody>
             {filas.map((g) => (
               <tr key={g.id}>
-                {(["fecha", "categoria", "monto", "descripcion"] as Campo[]).map((campo) => (
+                {CAMPOS.map((campo) => (
                   <Celda
                     key={campo}
                     gasto={g}
                     campo={campo}
-                    categorias={categorias}
+                    categoriasCasa={categoriasCasa}
+                    cuentas={cuentas}
+                    socios={socios}
                     activa={editando?.id === g.id && editando.campo === campo}
                     editar={() => setEditando({ id: g.id, campo })}
                     salir={() => setEditando(null)}
@@ -80,11 +88,13 @@ export function TablaGastos({ filas, categorias }: { filas: Gasto[]; categorias:
 }
 
 function Celda({
-  gasto, campo, categorias, activa, editar, salir, guardado,
+  gasto, campo, categoriasCasa, cuentas, socios, activa, editar, salir, guardado,
 }: {
   gasto: Gasto;
   campo: Campo;
-  categorias: Item[];
+  categoriasCasa: Item[];
+  cuentas: Item[];
+  socios: Item[];
   activa: boolean;
   editar: () => void;
   salir: () => void;
@@ -95,13 +105,23 @@ function Celda({
   const cancelado = useRef(false);
   const yaEnvio = useRef(false);
   const derecha = campo === "monto" ? "r" : "";
+  const personal = gasto.tipo === "personal";
+
+  // Socio solo aplica a gastos personales; la categoría de los personales es fija.
+  if (campo === "socio" && !personal)
+    return <td className="tenue">—</td>;
+  if (campo === "categoria" && personal)
+    return <td className="tenue">Personal</td>;
 
   if (!activa) {
-    const valor =
-      campo === "fecha" ? formatoFecha(gasto.fecha)
-      : campo === "categoria" ? gasto.categoria
-      : campo === "monto" ? formatoPesos(gasto.monto)
-      : gasto.descripcion || <span className="tenue">Sin descripción</span>;
+    let valor: React.ReactNode;
+    if (campo === "fecha") valor = formatoFecha(gasto.fecha);
+    else if (campo === "tipo") valor = <span className={`tipo-chip ${gasto.tipo}`}>{personal ? "Personal" : "Casa"}</span>;
+    else if (campo === "socio") valor = gasto.socio ?? <span className="tipo-chip pend">Por confirmar</span>;
+    else if (campo === "categoria") valor = gasto.categoria;
+    else if (campo === "cuenta") valor = gasto.cuenta;
+    else if (campo === "monto") valor = formatoPesos(gasto.monto);
+    else valor = gasto.descripcion || <span className="tenue">Sin descripción</span>;
     return (
       <td
         className={`editable ${derecha}`}
@@ -116,7 +136,10 @@ function Celda({
 
   const inicial =
     campo === "fecha" ? gasto.fecha
+    : campo === "tipo" ? gasto.tipo
+    : campo === "socio" ? String(gasto.socioId ?? "")
     : campo === "categoria" ? String(gasto.categoriaId)
+    : campo === "cuenta" ? String(gasto.cuentaId)
     : campo === "monto" ? String(gasto.monto)
     : (gasto.descripcion ?? "");
 
@@ -126,8 +149,14 @@ function Celda({
     if (campo === "fecha") {
       if (!crudo) return setError("Elige la fecha del gasto.");
       cambio = { fecha: crudo };
+    } else if (campo === "tipo") {
+      cambio = { tipo: crudo === "personal" ? "personal" : "casa" };
+    } else if (campo === "socio") {
+      cambio = { socioId: crudo ? Number(crudo) : null };
     } else if (campo === "categoria") {
       cambio = { categoriaId: Number(crudo) };
+    } else if (campo === "cuenta") {
+      cambio = { metodoId: Number(crudo) };
     } else if (campo === "monto") {
       const n = Number(crudo.replace(/\D/g, ""));
       if (!(n > 0)) return setError("El monto debe ser mayor a 0.");
@@ -169,27 +198,36 @@ function Celda({
     "aria-invalid": !!error,
     className: error ? "invalid" : "",
   };
+  const conSelect = (opciones: { valor: string; texto: string }[]) => (
+    <select {...comunes} onChange={(e) => guardar(e.currentTarget.value)}>
+      {opciones.map((o) => (
+        <option key={o.valor} value={o.valor}>
+          {o.texto}
+        </option>
+      ))}
+    </select>
+  );
 
   return (
     <td className={`editando ${derecha}`}>
-      {campo === "categoria" ? (
-        <select {...comunes} onChange={(e) => guardar(e.currentTarget.value)}>
-          {categorias.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          {...comunes}
-          type={campo === "fecha" ? "date" : "text"}
-          inputMode={campo === "monto" ? "numeric" : undefined}
-          maxLength={campo === "descripcion" ? 200 : undefined}
-          placeholder={campo === "descripcion" ? "Descripción (opcional)" : undefined}
-          style={campo === "monto" ? { textAlign: "right" } : undefined}
-        />
-      )}
+      {campo === "tipo"
+        ? conSelect([{ valor: "casa", texto: "Casa" }, { valor: "personal", texto: "Personal" }])
+        : campo === "socio"
+          ? conSelect([{ valor: "", texto: "Por confirmar" }, ...socios.map((s) => ({ valor: String(s.id), texto: s.nombre }))])
+          : campo === "categoria"
+            ? conSelect(categoriasCasa.map((c) => ({ valor: String(c.id), texto: c.nombre })))
+            : campo === "cuenta"
+              ? conSelect(cuentas.map((c) => ({ valor: String(c.id), texto: c.nombre })))
+              : (
+                <input
+                  {...comunes}
+                  type={campo === "fecha" ? "date" : "text"}
+                  inputMode={campo === "monto" ? "numeric" : undefined}
+                  maxLength={campo === "descripcion" ? 200 : undefined}
+                  placeholder={campo === "descripcion" ? "Descripción (opcional)" : undefined}
+                  style={campo === "monto" ? { textAlign: "right" } : undefined}
+                />
+              )}
       {error && <small className="err">{error}</small>}
     </td>
   );

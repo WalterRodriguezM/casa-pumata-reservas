@@ -11,16 +11,26 @@ export type ReservaR = {
   origen: string;
   huesped: string;
 };
-export type GastoR = { fecha: string; monto: number; categoria: string };
+export type GastoR = {
+  fecha: string;
+  monto: number;
+  categoria: string;
+  tipo: "casa" | "personal";
+  socio: string | null; // solo personales; null = «Por confirmar»
+  cuenta: string; // con qué se pagó
+  descripcion: string | null;
+};
 export type Datos = { reservas: ReservaR[]; gastos: GastoR[] };
 export type Periodo = { desde: string; hasta: string };
 
 export type Agregado = {
   reservas: ReservaR[];
-  gastos: GastoR[];
+  gastos: GastoR[]; // solo gastos de la casa
+  personales: GastoR[]; // gastos, retiros y préstamos de socios
+  todos: GastoR[];
   ingresos: number; // cobrado (monto_pagado) de reservas con check-in en el período
-  gastosTotal: number;
-  balance: number;
+  gastosTotal: number; // gastos de la casa
+  balance: number; // utilidad: ingresos cobrados − gastos de la casa
   porCobrar: number;
   noches: number;
   dias: number; // noches del período transcurridas hasta hoy
@@ -48,7 +58,9 @@ export const etiquetaPeriodo = (anio: number, mes: number) =>
 
 export function agregar(d: Datos, p: Periodo, hoy: string): Agregado {
   const reservas = d.reservas.filter((r) => r.checkin >= p.desde && r.checkin <= p.hasta);
-  const gastos = d.gastos.filter((g) => g.fecha >= p.desde && g.fecha <= p.hasta);
+  const todos = d.gastos.filter((g) => g.fecha >= p.desde && g.fecha <= p.hasta);
+  const gastos = todos.filter((g) => g.tipo === "casa");
+  const personales = todos.filter((g) => g.tipo === "personal");
   const ingresos = reservas.reduce((a, r) => a + r.pagado, 0);
   const porCobrar = reservas.reduce((a, r) => a + (r.total - r.pagado), 0);
   const gastosTotal = gastos.reduce((a, g) => a + g.monto, 0);
@@ -65,6 +77,8 @@ export function agregar(d: Datos, p: Periodo, hoy: string): Agregado {
   return {
     reservas,
     gastos,
+    personales,
+    todos,
     ingresos,
     gastosTotal,
     balance: ingresos - gastosTotal,
@@ -91,6 +105,52 @@ export function ingresosPorOrigen(rs: ReservaR[]) {
   return [...m].map(([nombre, x]) => ({ nombre, ...x })).sort((a, b) => b.valor - a.valor);
 }
 
+/* ---------- Cuadre por socio ---------- */
+export type Socio = { id: number; nombre: string; porcentaje: number };
+
+export async function cargarSocios(): Promise<Socio[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("socios").select("id, nombre, porcentaje").order("id");
+  if (error) throw new Error("No se pudieron cargar los socios: " + error.message);
+  return data.map((s) => ({ id: s.id, nombre: s.nombre, porcentaje: Number(s.porcentaje) }));
+}
+
+// Comisión de Ana: 7 % en Booking y Airbnb, 10 % en las demás reservas, sobre el valor bruto.
+const tasaAna = (origen: string) => (origen === "Booking" || origen === "Airbnb" ? 0.07 : 0.1);
+
+export function calcularCuadre(d: Datos, p: Periodo, hoy: string, socios: Socio[]) {
+  const A = agregar(d, p, hoy);
+  const utilidad = A.ingresos - A.gastosTotal;
+
+  const porSocio = socios.map((s) => {
+    const movimientos = A.personales.filter((g) => g.socio === s.nombre).sort((a, b) => b.fecha.localeCompare(a.fecha));
+    const descuentos = movimientos.reduce((a, g) => a + g.monto, 0);
+    const parte = (utilidad * s.porcentaje) / 100;
+    return { ...s, parte, descuentos, saldo: parte - descuentos, movimientos };
+  });
+
+  const sinSocio = A.personales.filter((g) => g.socio === null);
+
+  const cuentas = new Map<string, number>();
+  for (const g of A.todos) cuentas.set(g.cuenta, (cuentas.get(g.cuenta) ?? 0) + g.monto);
+  const porCuenta = [...cuentas].map(([nombre, valor]) => ({ nombre, valor })).sort((a, b) => b.valor - a.valor);
+
+  const comisionGenerada = A.reservas.reduce((a, r) => a + r.total * tasaAna(r.origen), 0);
+  const comisionPagada = A.gastos.filter((g) => g.categoria === "Comisión Ana").reduce((a, g) => a + g.monto, 0);
+
+  return {
+    A,
+    utilidad,
+    porSocio,
+    sinSocio,
+    sinSocioTotal: sinSocio.reduce((a, g) => a + g.monto, 0),
+    porCuenta,
+    porCategoria: gastosPorCategoria(A.gastos),
+    comisionGenerada,
+    comisionPagada,
+  };
+}
+
 export type Busqueda = Record<string, string | string[] | undefined>;
 const uno = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 
@@ -102,6 +162,7 @@ export function leerFiltros(sp: Busqueda, hoy: string) {
     anio: /^\d{4}$/.test(a) ? Number(a) : anioActual,
     mes: /^(?:[1-9]|1[0-2])$/.test(m) ? Number(m) : 0,
     comparar: uno(sp.cmp) === "1",
+    vista: uno(sp.vista) === "cuadre" ? ("cuadre" as const) : ("resumen" as const),
   };
 }
 
@@ -132,11 +193,22 @@ export async function cargarDatos(anio: number): Promise<Datos> {
       >(),
     supabase
       .from("gastos")
-      .select("fecha, monto, categorias_gasto(nombre)")
+      .select("fecha, monto, tipo, descripcion, categorias_gasto(nombre), metodos_pago(nombre), socios(nombre)")
       .gte("fecha", desde)
       .lte("fecha", hasta)
       .limit(10000)
-      .overrideTypes<{ fecha: string; monto: number | string; categorias_gasto: { nombre: string } }[], { merge: false }>(),
+      .overrideTypes<
+        {
+          fecha: string;
+          monto: number | string;
+          tipo: "casa" | "personal";
+          descripcion: string | null;
+          categorias_gasto: { nombre: string };
+          metodos_pago: { nombre: string };
+          socios: { nombre: string } | null;
+        }[],
+        { merge: false }
+      >(),
   ]);
   if (rs.error) throw new Error("No se pudieron cargar las reservas: " + rs.error.message);
   if (gs.error) throw new Error("No se pudieron cargar los gastos: " + gs.error.message);
@@ -150,7 +222,15 @@ export async function cargarDatos(anio: number): Promise<Datos> {
       origen: r.origenes_reserva.nombre,
       huesped: r.huespedes.nombre_completo,
     })),
-    gastos: gs.data.map((g) => ({ fecha: g.fecha, monto: Number(g.monto), categoria: g.categorias_gasto.nombre })),
+    gastos: gs.data.map((g) => ({
+      fecha: g.fecha,
+      monto: Number(g.monto),
+      categoria: g.categorias_gasto.nombre,
+      tipo: g.tipo,
+      socio: g.socios?.nombre ?? null,
+      cuenta: g.metodos_pago.nombre,
+      descripcion: g.descripcion,
+    })),
   };
 }
 
@@ -181,18 +261,18 @@ export function csvResumen(d: Datos, anio: number, mes: number, hoy: string) {
     [],
     ["Indicador", "Valor"],
     ["Ingresos cobrados", A.ingresos],
-    ["Gastos", A.gastosTotal],
-    ["Balance", A.balance],
+    ["Gastos de la casa", A.gastosTotal],
+    ["Utilidad (ingresos − gastos de la casa)", A.balance],
     ["Ocupación %", A.pct],
     ["Por cobrar", A.porCobrar],
     [],
-    ["Gastos por categoría", "Monto"],
+    ["Gastos de la casa por categoría", "Monto"],
     ...gastosPorCategoria(A.gastos).map((x) => [x.nombre, x.valor]),
     [],
     ["Ingresos por origen", "Monto cobrado", "Reservas"],
     ...ingresosPorOrigen(A.reservas).map((x) => [x.nombre, x.valor, x.n]),
     [],
-    ["Mes", "Reservas", "Noches", "Ocupación %", "Ingresos", "Gastos", "Balance"],
+    ["Mes", "Reservas", "Noches", "Ocupación %", "Ingresos", "Gastos de la casa", "Utilidad"],
   ];
   for (let i = 1; i <= 12; i++) {
     const x = agregar(d, periodo(anio, i), hoy);
@@ -203,16 +283,16 @@ export function csvResumen(d: Datos, anio: number, mes: number, hoy: string) {
 
 export function csvDetalle(d: Datos, anio: number, mes: number) {
   const p = periodo(anio, mes);
-  const filas: (string | number)[][] = [["Tipo", "Fecha", "Descripción", "Origen / Categoría", "Monto", "Costo total"]];
+  const filas: (string | number)[][] = [["Tipo", "Fecha", "Descripción", "Origen / Categoría", "Monto", "Costo total", "Socio", "Se pagó con"]];
   d.reservas
     .filter((r) => r.checkin >= p.desde && r.checkin <= p.hasta)
     .sort((a, b) => a.checkin.localeCompare(b.checkin))
     .forEach((r) =>
-      filas.push(["Reserva", r.checkin, `${r.huesped} · salida ${r.checkout} · ${diferenciaDias(r.checkin, r.checkout)} noches`, r.origen, r.pagado, r.total]),
+      filas.push(["Reserva", r.checkin, `${r.huesped} · salida ${r.checkout} · ${diferenciaDias(r.checkin, r.checkout)} noches`, r.origen, r.pagado, r.total, "", ""]),
     );
   d.gastos
     .filter((g) => g.fecha >= p.desde && g.fecha <= p.hasta)
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
-    .forEach((g) => filas.push(["Gasto", g.fecha, "", g.categoria, -g.monto, ""]));
+    .forEach((g) => filas.push([g.tipo === "casa" ? "Gasto de la casa" : "Gasto personal", g.fecha, g.descripcion ?? "", g.categoria, -g.monto, "", g.socio ?? (g.tipo === "personal" ? "Por confirmar" : ""), g.cuenta]));
   return aCsv(filas);
 }

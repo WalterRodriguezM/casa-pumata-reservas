@@ -1,14 +1,18 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { BotonNuevoGasto } from "@/components/modal-gasto";
 import { FiltrosGastos } from "@/components/filtros-gastos";
 import { Paginacion } from "@/components/paginacion";
 import { TablaGastos } from "@/components/tabla-gastos";
-import { hoyColombia, formatoPesos } from "@/lib/fechas";
-import { anioMasAntiguoGastos, categoriasGasto, listarGastos } from "@/lib/gastos";
+import { formatoPesos, hoyColombia } from "@/lib/fechas";
+import {
+  anioMasAntiguoGastos, catalogosGastos, gastosPendientes, listarGastos, type TipoGasto,
+} from "@/lib/gastos";
 
 type Busqueda = Promise<Record<string, string | string[] | undefined>>;
 
 const uno = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
+const entero = (v: string) => (/^\d+$/.test(v) ? Number(v) : null);
 
 export default async function GastosPage({ searchParams }: { searchParams: Busqueda }) {
   const sp = await searchParams;
@@ -35,16 +39,32 @@ export default async function GastosPage({ searchParams }: { searchParams: Busqu
       hasta = `${anio}-12-31`;
     }
   }
-  const categoria = /^\d+$/.test(uno(sp.categoria)) ? Number(uno(sp.categoria)) : null;
-  const pagina = Math.max(1, /^\d+$/.test(uno(sp.pagina)) ? Number(uno(sp.pagina)) : 1);
 
-  const [categorias, primerAnio, { filas, total, suma, paginas }] = await Promise.all([
-    categoriasGasto(),
+  const tipoParam = uno(sp.tipo);
+  const tipo: TipoGasto | null = tipoParam === "casa" || tipoParam === "personal" ? tipoParam : null;
+  const socioParam = uno(sp.socio);
+  const socio = socioParam === "pendiente" ? "pendiente" : entero(socioParam);
+  const categoria = entero(uno(sp.categoria));
+  const cuenta = entero(uno(sp.cuenta));
+  const pagina = Math.max(1, entero(uno(sp.pagina)) ?? 1);
+
+  const [cats, primerAnio, pendientes, { filas, total, casa, personal, paginas }] = await Promise.all([
+    catalogosGastos(),
     anioMasAntiguoGastos(),
-    listarGastos({ desde, hasta, categoriaId: categoria, pagina }),
+    gastosPendientes(),
+    listarGastos({ desde, hasta, tipo, socio, categoriaId: categoria, cuentaId: cuenta, pagina }),
   ]);
   const anios: number[] = [];
   for (let a = anioActual + 1; a >= Math.min(primerAnio ?? anioActual, anioActual - 1); a--) anios.push(a);
+
+  const params: Record<string, string | undefined> = {
+    anio: anioParam || undefined,
+    mes: mesParam || undefined,
+    tipo: tipo ?? undefined,
+    socio: socioParam || undefined,
+    categoria: categoria ? String(categoria) : undefined,
+    cuenta: cuenta ? String(cuenta) : undefined,
+  };
 
   return (
     <div className="wrap estrecho">
@@ -52,31 +72,46 @@ export default async function GastosPage({ searchParams }: { searchParams: Busqu
         <h1>
           <small>Registro</small>Gastos
         </h1>
-        <BotonNuevoGasto categorias={categorias} hoy={hoy} />
+        <BotonNuevoGasto categoriasCasa={cats.categoriasCasa} cuentas={cats.cuentas} socios={cats.socios} hoy={hoy} />
       </header>
       <section className="panel">
         <Suspense>
-          <FiltrosGastos categorias={categorias} anios={anios} anioActual={anioActual} mesActual={mesActual} />
+          <FiltrosGastos
+            categorias={cats.categorias}
+            cuentas={cats.cuentas}
+            socios={cats.socios}
+            anios={anios}
+            anioActual={anioActual}
+            mesActual={mesActual}
+          />
         </Suspense>
+        {pendientes.n > 0 && (
+          <div className="aviso-pend">
+            <span>
+              <b>
+                {pendientes.n} gasto{pendientes.n > 1 ? "s" : ""} personal{pendientes.n > 1 ? "es" : ""} sin socio
+              </b>{" "}
+              ({formatoPesos(pendientes.suma)}). No entran en el cuadre de nadie hasta que elijas un socio.
+            </span>
+            <Link className="btn" href="/gastos?anio=todos&tipo=personal&socio=pendiente">
+              Ver solo esos
+            </Link>
+          </div>
+        )}
         <p className="ayuda" style={{ marginTop: 14 }}>
-          <b>Edita directo en la tabla:</b> haz clic en una celda, cambia el valor y presiona <kbd>Enter</kbd> para
-          guardar o <kbd>Esc</kbd> para cancelar.
+          <b>Edita directo en la tabla:</b> haz clic en una celda, cambia el valor y presiona <kbd>Enter</kbd> (o elige una
+          opción de la lista). <kbd>Esc</kbd> cancela.
         </p>
-        <TablaGastos filas={filas} categorias={categorias} />
+        <TablaGastos filas={filas} categoriasCasa={cats.categoriasCasa} cuentas={cats.cuentas} socios={cats.socios} />
         <div className="pie">
           <span>
             {total} {total === 1 ? "gasto" : "gastos"} · más recientes primero
           </span>
           <span className="total-gastos">
-            Total: <b>{formatoPesos(suma)}</b>
+            Casa <b>{formatoPesos(casa)}</b> · Personal <b>{formatoPesos(personal)}</b> · Total <b>{formatoPesos(casa + personal)}</b>
           </span>
         </div>
-        <Paginacion
-          ruta="/gastos"
-          params={{ anio: anioParam || undefined, mes: mesParam || undefined, categoria: categoria ? String(categoria) : undefined }}
-          pagina={pagina}
-          paginas={paginas}
-        />
+        <Paginacion ruta="/gastos" params={params} pagina={pagina} paginas={paginas} />
       </section>
     </div>
   );

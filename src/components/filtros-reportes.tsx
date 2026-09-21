@@ -3,9 +3,9 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { MESES } from "@/lib/fechas";
 
-type Props = { anios: number[]; anio: number; mes: number; comparar: boolean };
+type Props = { anios: number[]; anio: number; mes: number; comparar: boolean; soloPeriodo?: boolean };
 
-export function FiltrosReportes({ anios, anio, mes, comparar }: Props) {
+export function FiltrosReportes({ anios, anio, mes, comparar, soloPeriodo }: Props) {
   const router = useRouter();
   const ruta = usePathname();
   const params = useSearchParams();
@@ -47,10 +47,13 @@ export function FiltrosReportes({ anios, anio, mes, comparar }: Props) {
           ))}
         </select>
       </label>
+      {!soloPeriodo && (
       <label className="check">
         <input type="checkbox" checked={comparar} onChange={(e) => ir({ cmp: e.target.checked ? "1" : "" })} />
         Comparar con el período anterior
       </label>
+      )}
+      {!soloPeriodo && (
       <details className="menu">
         <summary className="btn primary">Exportar ▾</summary>
         <div className="menu-l">
@@ -64,6 +67,7 @@ export function FiltrosReportes({ anios, anio, mes, comparar }: Props) {
           </a>
         </div>
       </details>
+      )}
     </div>
   );
 }

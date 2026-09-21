@@ -6,6 +6,8 @@ import { MESES } from "@/lib/fechas";
 
 type Props = {
   categorias: Item[];
+  cuentas: Item[];
+  socios: Item[];
   anios: number[];
   anioActual: number;
   mesActual: number; // 1-12
@@ -13,7 +15,7 @@ type Props = {
 
 // Sin parámetros = año y mes actuales. `anio=todos` quita el filtro de fecha.
 // `mes=todos` (con un año) muestra el año completo.
-export function FiltrosGastos({ categorias, anios, anioActual, mesActual }: Props) {
+export function FiltrosGastos({ categorias, cuentas, socios, anios, anioActual, mesActual }: Props) {
   const router = useRouter();
   const ruta = usePathname();
   const params = useSearchParams();
@@ -34,6 +36,8 @@ export function FiltrosGastos({ categorias, anios, anioActual, mesActual }: Prop
     nuevo.delete("pagina");
     router.replace(`${ruta}?${nuevo.toString()}`);
   };
+
+  const hayFiltros = ["anio", "mes", "tipo", "socio", "categoria", "cuenta"].some((k) => params.get(k));
 
   return (
     <div className="filtros">
@@ -60,6 +64,26 @@ export function FiltrosGastos({ categorias, anios, anioActual, mesActual }: Prop
         </select>
       </label>
       <label>
+        Tipo
+        <select value={params.get("tipo") ?? ""} onChange={(e) => ir({ tipo: e.target.value })}>
+          <option value="">Todos</option>
+          <option value="casa">Casa</option>
+          <option value="personal">Personal</option>
+        </select>
+      </label>
+      <label>
+        Socio
+        <select value={params.get("socio") ?? ""} onChange={(e) => ir({ socio: e.target.value })}>
+          <option value="">Todos</option>
+          {socios.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.nombre}
+            </option>
+          ))}
+          <option value="pendiente">Por confirmar</option>
+        </select>
+      </label>
+      <label>
         Categoría
         <select value={params.get("categoria") ?? ""} onChange={(e) => ir({ categoria: e.target.value })}>
           <option value="">Todas</option>
@@ -70,7 +94,18 @@ export function FiltrosGastos({ categorias, anios, anioActual, mesActual }: Prop
           ))}
         </select>
       </label>
-      {(anioParam !== null || mesParam !== null || params.get("categoria")) && (
+      <label>
+        Se pagó con
+        <select value={params.get("cuenta") ?? ""} onChange={(e) => ir({ cuenta: e.target.value })}>
+          <option value="">Todas</option>
+          {cuentas.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nombre}
+            </option>
+          ))}
+        </select>
+      </label>
+      {hayFiltros && (
         <button className="btn ghost" onClick={() => router.replace(ruta)}>
           Mes actual
         </button>

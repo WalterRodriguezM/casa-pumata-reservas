@@ -5,8 +5,11 @@ import { crearGasto } from "@/app/(app)/gastos/actions";
 import { useAviso } from "@/components/aviso";
 import type { Item } from "@/lib/catalogos";
 import { formatoPesos } from "@/lib/fechas";
+import type { TipoGasto } from "@/lib/gastos";
 
-export function BotonNuevoGasto({ categorias, hoy }: { categorias: Item[]; hoy: string }) {
+type Props = { categoriasCasa: Item[]; cuentas: Item[]; socios: Item[]; hoy: string };
+
+export function BotonNuevoGasto(props: Props) {
   const [abierto, setAbierto] = useState(false);
   const [aviso, mostrar] = useAviso();
   return (
@@ -16,8 +19,7 @@ export function BotonNuevoGasto({ categorias, hoy }: { categorias: Item[]; hoy: 
       </button>
       {abierto && (
         <ModalGasto
-          categorias={categorias}
-          hoy={hoy}
+          {...props}
           cerrar={() => setAbierto(false)}
           creado={(m) => {
             setAbierto(false);
@@ -31,33 +33,41 @@ export function BotonNuevoGasto({ categorias, hoy }: { categorias: Item[]; hoy: 
 }
 
 function ModalGasto({
-  categorias, hoy, cerrar, creado,
-}: {
-  categorias: Item[];
-  hoy: string;
-  cerrar: () => void;
-  creado: (mensaje: string) => void;
-}) {
+  categoriasCasa, cuentas, socios, hoy, cerrar, creado,
+}: Props & { cerrar: () => void; creado: (mensaje: string) => void }) {
+  const efectivo = cuentas.find((c) => c.nombre === "Efectivo")?.id ?? cuentas[0]?.id ?? 0;
+  const [tipo, setTipo] = useState<TipoGasto>("casa");
   const [fecha, setFecha] = useState(hoy);
-  const [categoriaId, setCategoriaId] = useState("");
   const [monto, setMonto] = useState("");
+  const [socioId, setSocioId] = useState(""); // "" = aún sin elegir; "0" = Por confirmar
+  const [categoriaId, setCategoriaId] = useState("");
+  const [metodoId, setMetodoId] = useState(String(efectivo));
   const [descripcion, setDescripcion] = useState("");
-  const [errores, setErrores] = useState<{ fecha?: string; categoria?: string; monto?: string; envio?: string }>({});
+  const [errores, setErrores] = useState<{ fecha?: string; monto?: string; socio?: string; categoria?: string; envio?: string }>({});
   const [enviando, iniciar] = useTransition();
 
   const guardar = () => {
     const e = {
       fecha: fecha ? undefined : "Elige la fecha del gasto.",
-      categoria: categoriaId ? undefined : "Elige una categoría.",
       monto: Number(monto) > 0 ? undefined : "El monto debe ser mayor a 0.",
+      socio: tipo === "casa" || socioId ? undefined : "Elige un socio (o «Por confirmar»).",
+      categoria: tipo !== "casa" || categoriaId ? undefined : "Elige una categoría.",
     };
     setErrores(e);
-    if (e.fecha || e.categoria || e.monto) return;
+    if (e.fecha || e.monto || e.socio || e.categoria) return;
     iniciar(async () => {
-      const r = await crearGasto({ fecha, categoriaId: Number(categoriaId), monto: Number(monto), descripcion });
+      const r = await crearGasto({
+        fecha,
+        tipo,
+        socioId: tipo === "personal" && socioId !== "0" ? Number(socioId) : null,
+        categoriaId: tipo === "casa" ? Number(categoriaId) : 0,
+        metodoId: Number(metodoId),
+        monto: Number(monto),
+        descripcion,
+      });
       if (r.ok) {
-        const cat = categorias.find((c) => c.id === Number(categoriaId))?.nombre ?? "";
-        creado(`Gasto registrado: ${cat} · ${formatoPesos(Number(monto))}`);
+        const quien = tipo === "personal" ? ` · ${socios.find((s) => s.id === Number(socioId))?.nombre ?? "Por confirmar"}` : "";
+        creado(`Gasto registrado: ${tipo === "casa" ? "Casa" : "Personal"}${quien} · ${formatoPesos(Number(monto))}`);
       } else setErrores({ envio: r.mensaje });
     });
   };
@@ -73,39 +83,83 @@ function ModalGasto({
         </div>
         <div className="mb">
           {errores.envio && <div className="alert" role="alert">{errores.envio}</div>}
+          <div>
+            <span className="ayuda" style={{ fontWeight: 500 }}>Tipo de gasto *</span>
+            <div className="seg">
+              <button type="button" aria-pressed={tipo === "casa"} onClick={() => setTipo("casa")}>
+                Casa<small>Gasto de la casa</small>
+              </button>
+              <button type="button" aria-pressed={tipo === "personal"} onClick={() => setTipo("personal")}>
+                Personal<small>De un socio: gastos, retiros y préstamos</small>
+              </button>
+            </div>
+          </div>
+          <div className="row">
+            <label>
+              Fecha *
+              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={errores.fecha ? "invalid" : ""} />
+              {errores.fecha && <small className="err">{errores.fecha}</small>}
+            </label>
+            <label>
+              Monto *
+              <input
+                inputMode="numeric"
+                placeholder="Solo números"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value.replace(/\D/g, ""))}
+                className={errores.monto ? "invalid" : ""}
+              />
+              {errores.monto && <small className="err">{errores.monto}</small>}
+            </label>
+          </div>
+          {tipo === "personal" ? (
+            <label>
+              Socio *
+              <select value={socioId} onChange={(e) => setSocioId(e.target.value)} className={errores.socio ? "invalid" : ""} autoFocus>
+                <option value="">Elige un socio…</option>
+                {socios.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre}
+                  </option>
+                ))}
+                <option value="0">Por confirmar</option>
+              </select>
+              {errores.socio && <small className="err">{errores.socio}</small>}
+            </label>
+          ) : (
+            <label>
+              Categoría *
+              <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} className={errores.categoria ? "invalid" : ""} autoFocus>
+                <option value="">Elige una categoría…</option>
+                {categoriasCasa.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+              {errores.categoria && <small className="err">{errores.categoria}</small>}
+            </label>
+          )}
           <label>
-            Fecha *
-            <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={errores.fecha ? "invalid" : ""} />
-            {errores.fecha && <small className="err">{errores.fecha}</small>}
-          </label>
-          <label>
-            Categoría *
-            <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} className={errores.categoria ? "invalid" : ""} autoFocus>
-              <option value="">Elige una categoría…</option>
-              {categorias.map((c) => (
+            ¿Con qué se pagó?
+            <select value={metodoId} onChange={(e) => setMetodoId(e.target.value)}>
+              {cuentas.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.nombre}
                 </option>
               ))}
             </select>
-            {errores.categoria && <small className="err">{errores.categoria}</small>}
-          </label>
-          <label>
-            Monto *
-            <input
-              inputMode="numeric"
-              placeholder="Solo números"
-              value={monto}
-              onChange={(e) => setMonto(e.target.value.replace(/\D/g, ""))}
-              className={errores.monto ? "invalid" : ""}
-            />
-            {errores.monto && <small className="err">{errores.monto}</small>}
+            <small className="ayuda" style={{ margin: 0 }}>Efectivo o la cuenta de donde salió la plata. Sirve para ver cuánto sale de cada cuenta.</small>
           </label>
           <label>
             Descripción (opcional)
             <textarea rows={2} maxLength={200} placeholder="Ej.: recibo de agua de agosto" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
           </label>
-          <small className="ayuda">* Obligatorio</small>
+          <small className="ayuda" style={{ margin: 0 }}>
+            {tipo === "casa"
+              ? "Se descuenta de la utilidad de la casa antes de repartirla entre los socios."
+              : "Se descuenta de la parte del socio en el cuadre."}
+          </small>
         </div>
         <div className="mf">
           <button className="btn" onClick={cerrar} disabled={enviando}>
