@@ -47,10 +47,30 @@ export function VistaCuadre({ c, etq }: { c: Cuadre; etq: string }) {
             <span className="v">{pesos(A.gastosTotal)}</span>
             <span className="n">{A.gastos.length} gastos · incluye comisiones</span>
           </div>
-          <div className="paso res">
+          <div className="paso">
             <span className="t">= Utilidad a repartir</span>
             <span className="v">{pesos(c.utilidad)}</span>
-            <span className="n">{porcentajes}</span>
+            <span className="n">{porcentajes}. Aún no descuenta los retiros de cada socio.</span>
+          </div>
+          <div className="paso">
+            <span className="t">− Retiros personales</span>
+            <span className="v">{pesos(c.retiros)}</span>
+            <span className="n">
+              {A.personales.length} {A.personales.length === 1 ? "gasto" : "gastos"}
+              {c.sinSocio.length > 0 && ` · incluye ${c.sinSocio.length} por confirmar`}
+            </span>
+          </div>
+          <div className={`paso res ${c.saldoCaja >= 0 ? "pos" : "neg"}`}>
+            <span className="t">= Saldo de caja</span>
+            <span className="v">{pesos(c.saldoCaja)}</span>
+            <span className="n">
+              Lo que queda en caja después de los retiros. Negativo: se retiró más de lo que dejó la casa.
+            </span>
+            {c.sinSocioTotal > 0 && (
+              <span className="n">
+                Incluye {pesos(c.sinSocioTotal)} de retiros por confirmar, aún no asignados a ningún socio.
+              </span>
+            )}
           </div>
         </div>
       </section>

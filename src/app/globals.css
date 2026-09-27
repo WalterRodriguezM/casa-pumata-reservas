@@ -1406,7 +1406,7 @@ td.neg {
 }
 .flujo {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
 }
 .paso {
@@ -1431,8 +1431,18 @@ td.neg {
   font-size: 12px;
   color: var(--muted);
 }
-.paso.res {
+.paso.res.pos {
   background: var(--ok-soft);
+}
+.paso.res.pos .v {
+  color: var(--ok);
+}
+.paso.res.neg {
+  background: var(--bad);
+}
+.paso.res.neg .v,
+.paso.res.neg .n {
+  color: var(--bad-ink);
 }
 .socios {
   display: grid;

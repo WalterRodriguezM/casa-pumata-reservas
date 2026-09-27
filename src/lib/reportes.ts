@@ -140,6 +140,8 @@ export function calcularCuadre(d: Datos, p: Periodo, hoy: string, socios: Socio[
   });
 
   const sinSocio = A.personales.filter((g) => g.socio === null);
+  // Retiros personales: todos los gastos personales del período, con socio o «Por confirmar».
+  const retiros = A.personales.reduce((a, g) => a + g.monto, 0);
 
   const cuentas = new Map<string, number>();
   for (const g of A.todos) cuentas.set(g.cuenta, (cuentas.get(g.cuenta) ?? 0) + g.monto);
@@ -154,6 +156,10 @@ export function calcularCuadre(d: Datos, p: Periodo, hoy: string, socios: Socio[
     porSocio,
     sinSocio,
     sinSocioTotal: sinSocio.reduce((a, g) => a + g.monto, 0),
+    retiros,
+    // Lo que queda en caja. Con retiros «Por confirmar» difiere de la suma de los saldos
+    // de los socios justo en ese monto (esos retiros aún no se descuentan a nadie).
+    saldoCaja: utilidad - retiros,
     porCuenta,
     porCategoria: gastosPorCategoria(A.gastos),
     comisionGenerada,
