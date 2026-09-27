@@ -20,13 +20,18 @@ Next.js (App Router) + Supabase (Postgres + Auth) + Vercel + Resend.
   confirmaciones por correo (Resend) pospuesta hasta tener dominio.
 
 ### Fases
-0. Infraestructura (en curso)
-1. Modelo de datos (reservas, catálogos, exclusion constraint)
-2. Wizard de reserva (fechas → detalles → confirmación)
-3. Calendario de ocupación
-4. Registro de gastos
-5. Reportes (filtros por período + desglose)
+0. Infraestructura — hecha
+1. Modelo de datos (reservas, catálogos, exclusion constraint) — hecha
+2. Wizard de reserva (fechas → detalles → confirmación) — hecha
+3. Calendario de ocupación — hecha
+4. Registro de gastos — hecha (tipo casa/personal, socio, cuenta)
+5. Reportes (filtros por período + desglose) — hecha (incluye cuadre por socio)
 6. Confirmaciones por correo — POSPUESTA hasta tener dominio propio
+
+### Estado de la base (migraciones)
+Producción tiene aplicadas 001–006 y la carga de reservas 2026 del Excel.
+`000_extensiones.sql` solo se corre al montar un proyecto nuevo (en
+producción ya está). La próxima migración nueva es la 007.
 
 ### Patrones a reutilizar de La Loma
 Ver documento de patrones reutilizables del proyecto. En resumen:
