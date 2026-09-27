@@ -2,10 +2,18 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { MESES } from "@/lib/fechas";
+import { SeleccionMultiple } from "@/components/seleccion-multiple";
 
-type Props = { anios: number[]; anio: number; mes: number; comparar: boolean; soloPeriodo?: boolean };
+type Props = {
+  anios: number[];
+  anio: number;
+  meses: number[]; // vacío = todo el año
+  comparar: boolean;
+  etqComparar: string; // período contra el que se compara, p. ej. «junio–agosto 2025»
+  soloPeriodo?: boolean;
+};
 
-export function FiltrosReportes({ anios, anio, mes, comparar, soloPeriodo }: Props) {
+export function FiltrosReportes({ anios, anio, meses, comparar, etqComparar, soloPeriodo }: Props) {
   const router = useRouter();
   const ruta = usePathname();
   const params = useSearchParams();
@@ -13,7 +21,8 @@ export function FiltrosReportes({ anios, anio, mes, comparar, soloPeriodo }: Pro
   const ir = (cambio: Record<string, string>) => {
     const nuevo = new URLSearchParams(params.toString());
     nuevo.set("anio", String(anio));
-    nuevo.set("mes", String(mes));
+    if (meses.length) nuevo.set("mes", meses.join(","));
+    else nuevo.delete("mes");
     if (comparar) nuevo.set("cmp", "1");
     for (const [k, v] of Object.entries(cambio)) {
       if (v) nuevo.set(k, v);
@@ -22,7 +31,8 @@ export function FiltrosReportes({ anios, anio, mes, comparar, soloPeriodo }: Pro
     router.replace(`${ruta}?${nuevo.toString()}`);
   };
 
-  const exportar = (tipo: "resumen" | "detalle") => `/reportes/exportar?tipo=${tipo}&anio=${anio}&mes=${mes}`;
+  const exportar = (tipo: "resumen" | "detalle") =>
+    `/reportes/exportar?tipo=${tipo}&anio=${anio}${meses.length ? `&mes=${meses.join(",")}` : ""}`;
 
   return (
     <div className="filtros">
@@ -36,21 +46,18 @@ export function FiltrosReportes({ anios, anio, mes, comparar, soloPeriodo }: Pro
           ))}
         </select>
       </label>
-      <label>
-        Mes
-        <select value={mes} onChange={(e) => ir({ mes: e.target.value })}>
-          <option value="0">Todo el año</option>
-          {MESES.map((m, i) => (
-            <option key={m} value={i + 1}>
-              {m.charAt(0).toUpperCase() + m.slice(1)}
-            </option>
-          ))}
-        </select>
-      </label>
+      <SeleccionMultiple
+        etiqueta="Mes"
+        todos="Todo el año"
+        plural="meses"
+        opciones={MESES.map((m, i) => ({ valor: String(i + 1), nombre: m.charAt(0).toUpperCase() + m.slice(1), corto: m.charAt(0).toUpperCase() + m.slice(1, 3) }))}
+        valor={meses.map(String)}
+        cambiar={(v) => ir({ mes: v.join(",") })}
+      />
       {!soloPeriodo && (
       <label className="check">
         <input type="checkbox" checked={comparar} onChange={(e) => ir({ cmp: e.target.checked ? "1" : "" })} />
-        Comparar con el período anterior
+        Comparar con {etqComparar}
       </label>
       )}
       {!soloPeriodo && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   buscarHuespedes,
@@ -9,11 +9,11 @@ import {
   type HuespedResumen,
 } from "@/app/(app)/reservas/actions";
 import type { Catalogos } from "@/lib/catalogos";
-import { fondoCelda, type Ocupacion } from "@/lib/ocupacion";
+import type { Ocupacion } from "@/lib/ocupacion";
+import { GrillaMes, LeyendaCalendario } from "@/components/grilla-mes";
+import { ErrorConexion } from "@/components/error-conexion";
 import {
-  DIAS_SEMANA,
   MESES,
-  aIso,
   desdeIso,
   diferenciaDias,
   formatoFecha,
@@ -33,7 +33,7 @@ type Props = {
   ocupacion: Ocupacion;
   inicial: { a: string | null; b: string | null };
   cerrar: () => void;
-  creada: (mensaje: string) => void;
+  creada: (mensaje: string, rango: { a: string; b: string }) => void;
 };
 
 export type Huesped = {
@@ -68,6 +68,7 @@ export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, crea
   const [conflicto, setConflicto] = useState<string | null>(null);
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [errorFatal, setErrorFatal] = useState(false);
 
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === "Escape" && cerrar();
@@ -83,7 +84,9 @@ export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, crea
     if (!rango || !huesped) return;
     setEnviando(true);
     setErrorEnvio(null);
-    const res = await crearReserva({
+    let res;
+    try {
+      res = await crearReserva({
       checkin: rango.a,
       checkout: rango.b,
       numeroHuespedes: numHuespedes,
@@ -94,10 +97,15 @@ export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, crea
       montoTotal: nTotal,
       montoPagado: nPagado,
       notas,
-    });
+      });
+    } catch {
+      setEnviando(false);
+      setErrorFatal(true);
+      return;
+    }
     setEnviando(false);
     if (res.ok) {
-      creada(`Reserva creada para ${huesped.nombre}`);
+      creada(`Reserva creada para ${huesped.nombre} · ${formatoFecha(rango.a)} → ${formatoFecha(rango.b)}`, rango);
       return;
     }
     if (res.huespedId && huesped.nuevo) {
@@ -151,8 +159,6 @@ export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, crea
               setRango(r);
               setConflicto(null);
             }}
-            numHuespedes={numHuespedes}
-            setNumHuespedes={setNumHuespedes}
             conflicto={conflicto}
             cancelar={cerrar}
             siguiente={() => setPaso(2)}
@@ -163,9 +169,7 @@ export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, crea
           <>
             <div className="mb">
               <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <div className="chip">
-                  {resumenRango(rango)} · {numHuespedes} huésp.
-                </div>
+                <div className="chip">{resumenRango(rango)}</div>
                 <button className="btn ghost" onClick={() => setPaso(1)}>
                   Cambiar fechas
                 </button>
@@ -175,6 +179,14 @@ export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, crea
                   {errorEnvio}
                 </div>
               )}
+              <label style={{ maxWidth: 240 }}>
+                Número de huéspedes (máx. {MAX_HUESPEDES})
+                <div className="stepper">
+                  <button type="button" onClick={() => setNumHuespedes(Math.max(1, numHuespedes - 1))} aria-label="Menos">−</button>
+                  <output>{numHuespedes}</output>
+                  <button type="button" onClick={() => setNumHuespedes(Math.min(MAX_HUESPEDES, numHuespedes + 1))} aria-label="Más">+</button>
+                </div>
+              </label>
               <CamposDetalle
                 catalogos={catalogos}
                 estados={catalogos.estados}
@@ -213,6 +225,7 @@ export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, crea
                   {errorEnvio}
                 </div>
               )}
+              {errorFatal && <ErrorConexion que="la reserva se guardó" />}
               <dl>
                 <dt>Fechas</dt>
                 <dd>{formatoFecha(rango.a)} → {formatoFecha(rango.b)}</dd>
@@ -254,7 +267,7 @@ export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, crea
               <button className="btn" onClick={() => setPaso(2)} disabled={enviando}>
                 ← Atrás
               </button>
-              <button className="btn primary" onClick={confirmar} disabled={enviando}>
+              <button className="btn primary" onClick={confirmar} disabled={enviando || errorFatal}>
                 {enviando ? "Guardando…" : "Confirmar reserva"}
               </button>
             </div>
@@ -383,7 +396,7 @@ function Select({
 
 /* ---------- Paso 1 ---------- */
 function PasoFechas({
-  hoy, ocupacion, rango, pick, setPick, setRango, numHuespedes, setNumHuespedes, conflicto, cancelar, siguiente,
+  hoy, ocupacion, rango, pick, setPick, setRango, conflicto, cancelar, siguiente,
 }: {
   hoy: string;
   ocupacion: Ocupacion;
@@ -391,8 +404,6 @@ function PasoFechas({
   pick: string | null;
   setPick: (d: string | null) => void;
   setRango: (r: { a: string; b: string } | null) => void;
-  numHuespedes: number;
-  setNumHuespedes: (n: number) => void;
   conflicto: string | null;
   cancelar: () => void;
   siguiente: () => void;
@@ -424,40 +435,13 @@ function PasoFechas({
   const prev = pick ? { a: pick, b: hover && hover > pick ? hover : pick } : rango;
   const prevValido = prev && prev.a < prev.b ? rangoValido(prev.a, prev.b) : true;
 
-  const primero = new Date(vista.y, vista.m, 1);
-  const relleno = (primero.getDay() + 6) % 7;
-  const dias = new Date(vista.y, vista.m + 1, 0).getDate();
   const mover = (n: number) =>
     setVista((v) => {
       const d = new Date(v.y, v.m + n, 1);
       return { y: d.getFullYear(), m: d.getMonth() };
     });
-
-  const celdas = useMemo(() => {
-    const out = [];
-    for (let i = 0; i < relleno; i++) out.push(<div key={"b" + i} className="cell blank" />);
-    for (let dia = 1; dia <= dias; dia++) {
-      const d = aIso(new Date(vista.y, vista.m, dia));
-      let cls = "cell";
-      const fondo = fondoCelda(ocupacion, d);
-      if (d === hoy) cls += " hoy";
-      if (d < hoy) cls += " pasada";
-      else if (!fondo) cls += " libre-hover";
-      if (prev) {
-        if (prev.a < prev.b) {
-          if (d >= prev.a && d < prev.b) cls += prevValido ? " sel" : " bad";
-          if (d === prev.b) cls += prevValido ? " sel-end" : " bad";
-        } else if (d === prev.a) cls += " sel-end";
-      }
-      out.push(
-        <div key={d} className={cls} data-d={d} style={fondo ? { backgroundImage: fondo } : undefined} onClick={() => clic(d)} onPointerEnter={() => pick && setHover(d)}>
-          <span className="n">{dia}</span>
-        </div>,
-      );
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vista, ocupacion, prev?.a, prev?.b, prevValido, pick, hover, hoy]);
+  const inicio = desdeIso(hoy);
+  const dia = (e: React.MouseEvent) => (e.target as HTMLElement).closest<HTMLElement>("[data-d]")?.dataset.d ?? null;
 
   return (
     <>
@@ -473,17 +457,28 @@ function PasoFechas({
           </b>
           <div className="nav">
             <button className="btn" onClick={() => mover(-1)} aria-label="Mes anterior">←</button>
+            <button className="btn" onClick={() => setVista({ y: inicio.getFullYear(), m: inicio.getMonth() })}>Hoy</button>
             <button className="btn" onClick={() => mover(1)} aria-label="Mes siguiente">→</button>
           </div>
         </div>
-        <div className="mini">
-          <div className="dow">
-            {DIAS_SEMANA.map((d) => (
-              <div key={d}>{d}</div>
-            ))}
-          </div>
-          <div className="grid">{celdas}</div>
-        </div>
+        <GrillaMes
+          anio={vista.y}
+          mes={vista.m}
+          hoy={hoy}
+          ocupacion={ocupacion}
+          seleccion={prev}
+          seleccionValida={prevValido}
+          compacto
+          libreHover
+          onClick={(e) => {
+            const d = dia(e);
+            if (d) clic(d);
+          }}
+          onPointerOver={(e) => {
+            const d = dia(e);
+            if (pick && d) setHover(d);
+          }}
+        />
         <div className="status">
           {pick ? (
             <>Check-in <b>{formatoFecha(pick)}</b>. Ahora elige el check-out.</>
@@ -493,14 +488,7 @@ function PasoFechas({
             "Elige el día de check-in."
           )}
         </div>
-        <label style={{ maxWidth: 240 }}>
-          Número de huéspedes (máx. {MAX_HUESPEDES})
-          <div className="stepper">
-            <button onClick={() => setNumHuespedes(Math.max(1, numHuespedes - 1))} aria-label="Menos">−</button>
-            <output>{numHuespedes}</output>
-            <button onClick={() => setNumHuespedes(Math.min(MAX_HUESPEDES, numHuespedes + 1))} aria-label="Más">+</button>
-          </div>
-        </label>
+        <LeyendaCalendario />
       </div>
       <div className="mf entre">
         <button className="btn ghost" onClick={cancelar}>Cancelar</button>

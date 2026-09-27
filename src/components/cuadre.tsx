@@ -79,7 +79,7 @@ export function VistaCuadre({ c, etq }: { c: Cuadre; etq: string }) {
               <span>{s.saldo >= 0 ? "Saldo a favor" : "Queda debiendo"}</span>
               <span>{pesos(s.saldo)}</span>
             </div>
-            <details className="mini">
+            <details className="movs">
               <summary>Ver {s.movimientos.length} movimientos</summary>
               {s.movimientos.length === 0 ? (
                 <div><span>Sin movimientos</span></div>

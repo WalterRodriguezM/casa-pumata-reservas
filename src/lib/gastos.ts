@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import type { RangoFechas } from "@/lib/fechas";
 
 export const CATEGORIA_PERSONAL = 12; // ver migración 006
 export const CATEGORIA_CASA_POR_DEFECTO = 9; // «Pagos generales»
@@ -39,11 +40,10 @@ const SELECT =
   "id, fecha, tipo, socio_id, categoria_gasto_id, metodo_pago_id, monto, descripcion, categorias_gasto(nombre), metodos_pago(nombre), socios(nombre)";
 
 export type FiltrosGastos = {
-  desde: string | null; // fechas inclusivas YYYY-MM-DD; null = sin filtro de fecha
-  hasta: string | null;
+  rangos: RangoFechas[] | null; // fechas inclusivas YYYY-MM-DD; null = sin filtro de fecha
   tipo: TipoGasto | null;
   socio: number | "pendiente" | null;
-  categoriaId: number | null;
+  categoriaIds: number[]; // vacío = todas
   cuentaId: number | null;
   pagina: number;
 };
@@ -55,9 +55,14 @@ export async function listarGastos(f: FiltrosGastos) {
 
   let consulta = supabase.from("gastos").select(SELECT, { count: "exact" });
   let sumas = supabase.from("gastos").select("monto, tipo");
-  if (f.desde && f.hasta) {
-    consulta = consulta.gte("fecha", f.desde).lte("fecha", f.hasta);
-    sumas = sumas.gte("fecha", f.desde).lte("fecha", f.hasta);
+  if (f.rangos?.length === 1) {
+    const [r] = f.rangos;
+    consulta = consulta.gte("fecha", r.desde).lte("fecha", r.hasta);
+    sumas = sumas.gte("fecha", r.desde).lte("fecha", r.hasta);
+  } else if (f.rangos && f.rangos.length > 1) {
+    const o = f.rangos.map((r) => `and(fecha.gte.${r.desde},fecha.lte.${r.hasta})`).join(",");
+    consulta = consulta.or(o);
+    sumas = sumas.or(o);
   }
   if (f.tipo) {
     consulta = consulta.eq("tipo", f.tipo);
@@ -70,9 +75,9 @@ export async function listarGastos(f: FiltrosGastos) {
     consulta = consulta.eq("socio_id", f.socio);
     sumas = sumas.eq("socio_id", f.socio);
   }
-  if (f.categoriaId) {
-    consulta = consulta.eq("categoria_gasto_id", f.categoriaId);
-    sumas = sumas.eq("categoria_gasto_id", f.categoriaId);
+  if (f.categoriaIds.length) {
+    consulta = consulta.in("categoria_gasto_id", f.categoriaIds);
+    sumas = sumas.in("categoria_gasto_id", f.categoriaIds);
   }
   if (f.cuentaId) {
     consulta = consulta.eq("metodo_pago_id", f.cuentaId);

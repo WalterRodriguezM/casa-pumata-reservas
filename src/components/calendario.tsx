@@ -1,19 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  DIAS_SEMANA,
-  MESES,
-  aIso,
-  desdeIso,
-  diferenciaDias,
-  formatoFecha,
-} from "@/lib/fechas";
-import { crearOcupacion, fondoCelda } from "@/lib/ocupacion";
+import { MESES, desdeIso, diferenciaDias, formatoFecha } from "@/lib/fechas";
+import { crearOcupacion } from "@/lib/ocupacion";
 import type { Reserva } from "@/lib/reservas";
 import type { Catalogos } from "@/lib/catalogos";
 import { ReservaModal } from "@/components/detalle-reserva";
 import { WizardReserva } from "@/components/wizard-reserva";
+import { GrillaMes, LeyendaCalendario } from "@/components/grilla-mes";
 
 type Props = {
   reservas: Reserva[];
@@ -32,17 +26,30 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
   const setDetalle = (x: Reserva | null) => setDetalleId(x?.id ?? null);
   const [wizard, setWizard] = useState<{ a: string | null; b: string | null; clave: number } | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [nueva, setNueva] = useState<Rango | null>(null);
   const arrastreRef = useRef<Rango | null>(null);
   const avisoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const nuevaTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const ocup = useMemo(() => crearOcupacion(reservas), [reservas]);
   const esPasada = (d: string) => d < hoy;
   const rangoValido = (a: string, b: string) => ocup.rangoValido(a, b, hoy);
 
-  const mostrarAviso = (t: string) => {
+  const mostrarAviso = (t: string, ms = 3200) => {
     setAviso(t);
     clearTimeout(avisoTimer.current);
-    avisoTimer.current = setTimeout(() => setAviso(null), 3200);
+    avisoTimer.current = setTimeout(() => setAviso(null), ms);
+  };
+
+  // Reserva recién creada: el calendario va al mes del check-in y la marca unos segundos.
+  const reservaCreada = (mensaje: string, r: Rango) => {
+    setWizard(null);
+    const d = desdeIso(r.a);
+    setVista({ y: d.getFullYear(), m: d.getMonth() });
+    setNueva(r);
+    clearTimeout(nuevaTimer.current);
+    nuevaTimer.current = setTimeout(() => setNueva(null), 4000);
+    mostrarAviso(mensaje, 4000);
   };
 
   // Con rango (arrastre) el wizard abre en el Paso 2; con solo check-in o sin fechas, en el Paso 1.
@@ -91,50 +98,12 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
       return { y: d.getFullYear(), m: d.getMonth() };
     });
 
-  const primero = new Date(vista.y, vista.m, 1);
-  const relleno = (primero.getDay() + 6) % 7; // semana desde el lunes
-  const diasMes = new Date(vista.y, vista.m + 1, 0).getDate();
-
   const prev = arrastre
     ? arrastre.a <= arrastre.b
       ? arrastre
       : { a: arrastre.b, b: arrastre.a }
     : null;
   const prevValido = prev && prev.a < prev.b ? rangoValido(prev.a, prev.b) : true;
-
-  const celdas = [];
-  for (let i = 0; i < relleno; i++) celdas.push(<div key={"b" + i} className="cell blank" />);
-  for (let dia = 1; dia <= diasMes; dia++) {
-    const d = aIso(new Date(vista.y, vista.m, dia));
-    const dow = (relleno + dia - 1) % 7;
-    const res = ocup.noche.get(d);
-    const fondo = fondoCelda(ocup, d);
-    let cls = "cell";
-    if (d === hoy) cls += " hoy";
-    if (esPasada(d)) cls += " pasada";
-    else if (!fondo && !prev) cls += " libre-hover";
-    if (prev) {
-      if (prev.a < prev.b) {
-        if (d >= prev.a && d < prev.b) cls += prevValido ? " sel" : " bad";
-        if (d === prev.b) cls += prevValido ? " sel-end" : " bad";
-      } else if (d === prev.a) cls += " sel-end";
-    }
-    let etiqueta = null;
-    if (res && (res.checkin === d || dow === 0)) {
-      const tramo = Math.min(diferenciaDias(d, res.checkout), 7 - dow);
-      etiqueta = (
-        <span className="lbl" style={{ maxWidth: `calc(${tramo * 100}% - 10px)` }}>
-          {res.huesped.nombre}
-        </span>
-      );
-    }
-    celdas.push(
-      <div key={d} className={cls} data-d={d} style={fondo ? { backgroundImage: fondo } : undefined}>
-        <span className="n">{dia}</span>
-        {etiqueta}
-      </div>,
-    );
-  }
 
   const estado = () => {
     if (prev && prev.a < prev.b) {
@@ -184,13 +153,16 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
           </div>
         </div>
 
-        <div className="dow">
-          {DIAS_SEMANA.map((d) => (
-            <div key={d}>{d}</div>
-          ))}
-        </div>
-        <div
-          className="grid"
+        <GrillaMes
+          anio={vista.y}
+          mes={vista.m}
+          hoy={hoy}
+          ocupacion={ocup}
+          seleccion={prev}
+          seleccionValida={prevValido}
+          resaltado={nueva}
+          nombres
+          libreHover={!prev}
           onPointerDown={(e) => {
             const d = diaDe(e);
             if (!d || e.pointerType !== "mouse" || ocup.nocheOcupada(d) || esPasada(d)) return;
@@ -217,21 +189,10 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
               abrirWizard(d, null);
             }
           }}
-        >
-          {celdas}
-        </div>
+        />
 
         <div className="status">{estado()}</div>
-        <div className="legend">
-          <span><i style={{ background: "var(--occ)" }} />Ocupada</span>
-          <span><i style={{ background: "linear-gradient(90deg,var(--occ) 50%,transparent 50%)" }} />Check-out (libre desde la tarde)</span>
-          <span><i style={{ background: "linear-gradient(90deg,transparent 50%,var(--occ) 50%)" }} />Check-in</span>
-          <span><i style={{ background: "var(--sel)" }} />Selección</span>
-          <span>
-            <i style={{ background: "repeating-linear-gradient(135deg,transparent 0 4px,var(--line) 4px 5px)" }} />
-            Fecha pasada (no reservable)
-          </span>
-        </div>
+        <LeyendaCalendario />
       </section>
 
       {detalle && (
@@ -251,10 +212,7 @@ export function Calendario({ reservas, hoy, catalogos }: Props) {
           ocupacion={ocup}
           inicial={{ a: wizard.a, b: wizard.b }}
           cerrar={() => setWizard(null)}
-          creada={(m) => {
-            setWizard(null);
-            mostrarAviso(m);
-          }}
+          creada={reservaCreada}
         />
       )}
       {aviso && <div className="toast" role="status">{aviso}</div>}

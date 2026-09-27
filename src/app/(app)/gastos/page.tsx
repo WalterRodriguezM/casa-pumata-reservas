@@ -4,7 +4,7 @@ import { BotonNuevoGasto } from "@/components/modal-gasto";
 import { FiltrosGastos } from "@/components/filtros-gastos";
 import { Paginacion } from "@/components/paginacion";
 import { TablaGastos } from "@/components/tabla-gastos";
-import { formatoPesos, hoyColombia } from "@/lib/fechas";
+import { formatoPesos, hoyColombia, listaEnteros, rangosDeMeses } from "@/lib/fechas";
 import {
   anioMasAntiguoGastos, catalogosGastos, gastosPendientes, listarGastos, type TipoGasto,
 } from "@/lib/gastos";
@@ -22,29 +22,18 @@ export default async function GastosPage({ searchParams }: { searchParams: Busqu
   const anioParam = uno(sp.anio);
   const mesParam = uno(sp.mes);
 
-  // Sin parámetros: mes actual. Con año y sin mes (o mes=todos): año completo. anio=todos: sin filtro.
-  const anio = anioParam === "todos" ? null : /^\d{4}$/.test(anioParam) ? Number(anioParam) : anioActual;
-  const mesNum = /^(?:[1-9]|1[0-2])$/.test(mesParam) ? Number(mesParam) : null;
-  const mes = !anioParam && !mesParam ? mesActual : mesNum;
-  let desde: string | null = null;
-  let hasta: string | null = null;
-  if (anio !== null) {
-    if (mes) {
-      const dd = String(new Date(anio, mes, 0).getDate()).padStart(2, "0");
-      const mm = String(mes).padStart(2, "0");
-      desde = `${anio}-${mm}-01`;
-      hasta = `${anio}-${mm}-${dd}`;
-    } else {
-      desde = `${anio}-01-01`;
-      hasta = `${anio}-12-31`;
-    }
-  }
+  // Sin parámetros: mes actual. Con año(s) y sin mes (o mes=todos): años completos. anio=todos: sin filtro.
+  // Año, mes y categoría pueden traer varios valores separados por coma.
+  const aniosParam = anioParam === "todos" ? null : listaEnteros(anioParam, 1900, 2999);
+  const aniosSel = aniosParam === null ? null : aniosParam.length ? aniosParam : [anioActual];
+  const meses = !anioParam && !mesParam ? [mesActual] : listaEnteros(mesParam, 1, 12);
+  const rangos = aniosSel === null ? null : rangosDeMeses(aniosSel, meses);
 
   const tipoParam = uno(sp.tipo);
   const tipo: TipoGasto | null = tipoParam === "casa" || tipoParam === "personal" ? tipoParam : null;
   const socioParam = uno(sp.socio);
   const socio = socioParam === "pendiente" ? "pendiente" : entero(socioParam);
-  const categoria = entero(uno(sp.categoria));
+  const categorias = listaEnteros(uno(sp.categoria), 1, 32767);
   const cuenta = entero(uno(sp.cuenta));
   const pagina = Math.max(1, entero(uno(sp.pagina)) ?? 1);
 
@@ -52,7 +41,7 @@ export default async function GastosPage({ searchParams }: { searchParams: Busqu
     catalogosGastos(),
     anioMasAntiguoGastos(),
     gastosPendientes(),
-    listarGastos({ desde, hasta, tipo, socio, categoriaId: categoria, cuentaId: cuenta, pagina }),
+    listarGastos({ rangos, tipo, socio, categoriaIds: categorias, cuentaId: cuenta, pagina }),
   ]);
   const anios: number[] = [];
   for (let a = anioActual + 1; a >= Math.min(primerAnio ?? anioActual, anioActual - 1); a--) anios.push(a);
@@ -62,7 +51,7 @@ export default async function GastosPage({ searchParams }: { searchParams: Busqu
     mes: mesParam || undefined,
     tipo: tipo ?? undefined,
     socio: socioParam || undefined,
-    categoria: categoria ? String(categoria) : undefined,
+    categoria: categorias.length ? categorias.join(",") : undefined,
     cuenta: cuenta ? String(cuenta) : undefined,
   };
 

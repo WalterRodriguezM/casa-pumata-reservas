@@ -237,6 +237,11 @@ h1 small {
 .cell.bad {
   box-shadow: inset 0 0 0 100px var(--bad);
 }
+.cell.nueva {
+  outline: 2px solid var(--ok);
+  outline-offset: -2px;
+  z-index: 1;
+}
 .status {
   min-height: 22px;
   margin-top: 10px;
@@ -534,11 +539,11 @@ input.invalid {
   font-weight: 700;
   font-size: 18px;
 }
-.mini .cell {
+.compacto .cell {
   min-height: 44px;
   padding: 3px 5px;
 }
-.mini .cell .n {
+.compacto .cell .n {
   font-size: 13px;
 }
 .ayuda {
@@ -645,6 +650,91 @@ h2 {
 }
 .filtros label {
   flex: 1 1 180px;
+}
+/* filtro con casillas (selección múltiple) */
+.ms {
+  flex: 1 1 180px;
+  position: relative;
+  display: grid;
+  gap: 4px;
+}
+.ms-l {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.ms-b {
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.ms-b span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ms-b small {
+  color: var(--muted);
+}
+.ms-b.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.ms-b:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.ms-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 8;
+  min-width: max(100%, 220px);
+  max-height: 340px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 6px;
+  display: grid;
+}
+.ms-pop .ms-op {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink);
+  cursor: pointer;
+}
+.ms-pop .ms-op:hover {
+  background: var(--accent-soft);
+}
+.ms-pop .ms-op.todos {
+  font-weight: 500;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  margin-bottom: 4px;
+}
+.ms-pop input {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  accent-color: var(--accent);
+  flex: none;
 }
 .tabla {
   overflow-x: auto;
@@ -1394,17 +1484,17 @@ td.neg {
   background: var(--bad);
   color: var(--bad-ink);
 }
-.mini {
+.movs {
   margin-top: 10px;
   font-size: 13px;
   color: var(--muted);
 }
-.mini summary {
+.movs summary {
   cursor: pointer;
   color: var(--ink);
   font-weight: 500;
 }
-.mini div {
+.movs div {
   display: flex;
   justify-content: space-between;
   gap: 12px;

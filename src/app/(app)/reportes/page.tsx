@@ -13,7 +13,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export default async function ReportesPage({ searchParams }: { searchParams: Promise<Busqueda> }) {
   const hoy = hoyColombia();
-  const { anio, mes, comparar, vista } = leerFiltros(await searchParams, hoy);
+  const { anio, meses: mesesSel, comparar, vista } = leerFiltros(await searchParams, hoy);
   const anioActual = Number(hoy.slice(0, 4));
 
   const [datos, primerAnio] = await Promise.all([cargarDatos(anio), primerAnioConDatos()]);
@@ -21,9 +21,10 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
   for (let a = anioActual; a >= Math.min(primerAnio ?? anioActual, anio); a--) anios.push(a);
   if (!anios.includes(anio)) anios.unshift(anio);
 
-  const A = agregar(datos, periodo(anio, mes), hoy);
-  const etq = cap(etiquetaPeriodo(anio, mes));
-  const hrefVista = (v: "resumen" | "cuadre") => `/reportes?anio=${anio}&mes=${mes}${v === "cuadre" ? "&vista=cuadre" : ""}`;
+  const A = agregar(datos, periodo(anio, mesesSel), hoy);
+  const etq = cap(etiquetaPeriodo(anio, mesesSel));
+  const mesParam = mesesSel.length ? `&mes=${mesesSel.join(",")}` : "";
+  const hrefVista = (v: "resumen" | "cuadre") => `/reportes?anio=${anio}${mesParam}${v === "cuadre" ? "&vista=cuadre" : ""}`;
   const pestanas = (
     <div className="tabs" role="tablist">
       <Link role="tab" aria-selected={vista === "resumen"} href={hrefVista("resumen")}>Resumen</Link>
@@ -32,7 +33,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
   );
   if (vista === "cuadre") {
     const socios = await cargarSocios();
-    const cuadre = calcularCuadre(datos, periodo(anio, mes), hoy, socios);
+    const cuadre = calcularCuadre(datos, periodo(anio, mesesSel), hoy, socios);
     return (
       <div className="wrap estrecho">
         <header className="topbar">
@@ -40,7 +41,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
             <small>Análisis</small>Reportes
           </h1>
           <Suspense>
-            <FiltrosReportes anios={anios} anio={anio} mes={mes} comparar={false} soloPeriodo />
+            <FiltrosReportes anios={anios} anio={anio} meses={mesesSel} comparar={false} etqComparar="" soloPeriodo />
           </Suspense>
         </header>
         {pestanas}
@@ -49,17 +50,18 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
     );
   }
 
-  const previo = comparar ? periodoAnterior(anio, mes) : null;
+  const anterior = periodoAnterior(anio, mesesSel);
+  const etqPrevio = etiquetaPeriodo(anterior.anio, anterior.meses);
   // Hay período anterior si termina en o después del primer año con datos.
-  const hayPrevio = !!previo && primerAnio !== null && previo.hasta >= `${primerAnio}-01-01`;
-  const P = previo && hayPrevio ? agregar(datos, previo, hoy) : null;
-  const etqPrevio = previo ? etiquetaPeriodo(previo.anio, previo.mes) : "";
+  const hayPrevio =
+    comparar && primerAnio !== null && anterior.rangos[anterior.rangos.length - 1].hasta >= `${primerAnio}-01-01`;
+  const P = hayPrevio ? agregar(datos, anterior.rangos, hoy) : null;
 
-  const meses = Array.from({ length: 12 }, (_, i) => ({ i: i + 1, ...agregar(datos, periodo(anio, i + 1), hoy) }));
+  const meses = Array.from({ length: 12 }, (_, i) => ({ i: i + 1, ...agregar(datos, periodo(anio, [i + 1]), hoy) }));
   const grafico: MesGrafico[] = meses.map((m) => ({
     i: m.i, ingresos: m.ingresos, gastos: m.gastosTotal, balance: m.balance, vacio: m.dias === 0,
   }));
-  const anual = agregar(datos, periodo(anio, 0), hoy);
+  const anual = agregar(datos, periodo(anio, []), hoy);
   const categorias = gastosPorCategoria(A.gastos);
   const origenes = ingresosPorOrigen(A.reservas);
 
@@ -70,7 +72,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
           <small>Análisis</small>Reportes
         </h1>
         <Suspense>
-          <FiltrosReportes anios={anios} anio={anio} mes={mes} comparar={comparar} />
+          <FiltrosReportes anios={anios} anio={anio} meses={mesesSel} comparar={comparar} etqComparar={etqPrevio} />
         </Suspense>
       </header>
       {pestanas}
@@ -97,7 +99,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
           <span><i className="sw" style={{ background: "var(--ing)" }} />Ingresos cobrados</span>
           <span><i className="sw" style={{ background: "var(--gas)" }} />Gastos</span>
         </div>
-        <GraficoMeses meses={grafico} seleccionado={mes} anio={anio} />
+        <GraficoMeses meses={grafico} seleccionados={mesesSel} anio={anio} />
       </section>
 
       <div className="dos">
@@ -168,7 +170,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
             </thead>
             <tbody>
               {meses.map((x) => (
-                <tr key={x.i} className={mes === x.i ? "sel" : ""}>
+                <tr key={x.i} className={mesesSel.includes(x.i) ? "sel" : ""}>
                   <td>{cap(MESES[x.i - 1])}</td>
                   {x.dias === 0 ? (
                     <><td className="r">—</td><td className="r">—</td><td className="r">—</td><td className="r">—</td><td className="r">—</td><td className="r">—</td></>

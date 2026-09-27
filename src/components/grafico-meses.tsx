@@ -13,7 +13,8 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const corto = (n: number) =>
   n >= 1e6 ? "$" + (n / 1e6).toLocaleString("es-CO", { maximumFractionDigits: 1 }) + " M" : n >= 1e3 ? "$" + Math.round(n / 1e3) + " mil" : "$" + n;
 
-export function GraficoMeses({ meses, seleccionado, anio }: { meses: MesGrafico[]; seleccionado: number; anio: number }) {
+// seleccionados vacío = año completo (sin resaltar).
+export function GraficoMeses({ meses, seleccionados, anio }: { meses: MesGrafico[]; seleccionados: number[]; anio: number }) {
   const [tip, setTip] = useState<{ m: MesGrafico; x: number; y: number } | null>(null);
 
   const max = Math.max(...meses.flatMap((m) => [m.ingresos, m.gastos]), 1);
@@ -52,7 +53,7 @@ export function GraficoMeses({ meses, seleccionado, anio }: { meses: MesGrafico[
         ))}
         {meses.map((m, i) => {
           const cx = L + gw * i + gw / 2;
-          const op = !seleccionado || seleccionado === m.i ? 1 : 0.35;
+          const op = !seleccionados.length || seleccionados.includes(m.i) ? 1 : 0.35;
           return (
             <g
               key={m.i}
@@ -70,7 +71,7 @@ export function GraficoMeses({ meses, seleccionado, anio }: { meses: MesGrafico[
                 x={cx}
                 y={H - 8}
                 textAnchor="middle"
-                style={seleccionado === m.i ? { fill: "var(--ink)", fontWeight: 700 } : undefined}
+                style={seleccionados.includes(m.i) ? { fill: "var(--ink)", fontWeight: 700 } : undefined}
               >
                 {M3[i]}
               </text>

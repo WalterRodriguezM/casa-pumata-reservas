@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { sumarDias } from "@/lib/fechas";
+import { sumarDias, type RangoFechas } from "@/lib/fechas";
 
 export type Reserva = {
   id: string;
@@ -100,6 +100,7 @@ export const POR_PAGINA = 20;
 
 export type FiltrosReservas = {
   q: string;
+  rangos: RangoFechas[] | null; // check-in dentro de alguno; null = sin filtro de fecha
   origenId: number | null;
   estadoId: number | null;
   pagina: number;
@@ -117,6 +118,9 @@ export async function listarReservas(f: FiltrosReservas) {
     .range(desde, desde + POR_PAGINA - 1);
 
   if (f.q) query = query.ilike("huespedes.nombre_completo", `%${f.q.replace(/[%_\\]/g, "\\$&")}%`);
+  if (f.rangos?.length) {
+    query = query.or(f.rangos.map((r) => `and(fecha_checkin.gte.${r.desde},fecha_checkin.lte.${r.hasta})`).join(","));
+  }
   if (f.origenId) query = query.eq("origen_reserva_id", f.origenId);
   if (f.estadoId) query = query.eq("estado_reserva_id", f.estadoId);
 
@@ -124,4 +128,11 @@ export async function listarReservas(f: FiltrosReservas) {
   if (error) throw new Error("No se pudieron cargar las reservas: " + error.message);
   const total = count ?? 0;
   return { filas: data.map(mapear), total, paginas: Math.max(1, Math.ceil(total / POR_PAGINA)) };
+}
+
+// Año del check-in más antiguo, para el filtro de año del listado.
+export async function anioMasAntiguoReservas(): Promise<number | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("reservas").select("fecha_checkin").order("fecha_checkin").limit(1);
+  return data?.[0] ? Number(data[0].fecha_checkin.slice(0, 4)) : null;
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { actualizarReserva } from "@/app/(app)/reservas/actions";
 import { CamposDetalle, type Huesped } from "@/components/wizard-reserva";
+import { ErrorConexion } from "@/components/error-conexion";
 import type { Catalogos } from "@/lib/catalogos";
 import { diferenciaDias, formatoFecha } from "@/lib/fechas";
 import type { Reserva } from "@/lib/reservas";
@@ -31,6 +32,7 @@ export function EditarReserva({ reserva: r, catalogos, volver, guardada }: Props
   const [notas, setNotas] = useState(r.notas ?? "");
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [errorFatal, setErrorFatal] = useState(false);
 
   const nTotal = Number(total) || 0;
   const nPagado = Number(pagado) || 0;
@@ -41,15 +43,22 @@ export function EditarReserva({ reserva: r, catalogos, volver, guardada }: Props
     if (!huesped) return;
     setGuardando(true);
     setError(null);
-    const res = await actualizarReserva(r.id, {
-      huesped: huesped.id ? { id: huesped.id } : { nuevo: huesped.nuevo! },
-      origenId,
-      metodoId,
-      estadoId,
-      montoTotal: nTotal,
-      montoPagado: nPagado,
-      notas,
-    });
+    let res;
+    try {
+      res = await actualizarReserva(r.id, {
+        huesped: huesped.id ? { id: huesped.id } : { nuevo: huesped.nuevo! },
+        origenId,
+        metodoId,
+        estadoId,
+        montoTotal: nTotal,
+        montoPagado: nPagado,
+        notas,
+      });
+    } catch {
+      setGuardando(false);
+      setErrorFatal(true);
+      return;
+    }
     setGuardando(false);
     if (res.ok) {
       guardada(estadoId === 3 ? "Reserva cancelada: las fechas quedaron libres" : "Cambios guardados");
@@ -77,6 +86,7 @@ export function EditarReserva({ reserva: r, catalogos, volver, guardada }: Props
               {error}
             </div>
           )}
+          {errorFatal && <ErrorConexion que="los cambios se guardaron" />}
           <CamposDetalle
             editando
             catalogos={catalogos}
@@ -101,7 +111,7 @@ export function EditarReserva({ reserva: r, catalogos, volver, guardada }: Props
           <button className="btn" onClick={volver} disabled={guardando}>
             Cancelar
           </button>
-          <button className="btn primary" onClick={guardar} disabled={!valido || guardando}>
+          <button className="btn primary" onClick={guardar} disabled={!valido || guardando || errorFatal}>
             {guardando ? "Guardando…" : "Guardar cambios"}
           </button>
         </div>

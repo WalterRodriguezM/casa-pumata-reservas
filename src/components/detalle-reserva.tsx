@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { registrarAbono } from "@/app/(app)/reservas/actions";
+import { ErrorConexion } from "@/components/error-conexion";
 import { ChipEstado } from "@/components/chip-estado";
 import { EditarReserva } from "@/components/editar-reserva";
 import type { Catalogos } from "@/lib/catalogos";
@@ -98,6 +99,7 @@ function FormularioAbono({ r, saldo, abonado }: { r: Reserva; saldo: number; abo
   const [monto, setMonto] = useState("");
   const [error, setError] = useState("");
   const [enviando, iniciar] = useTransition();
+  const [errorFatal, setErrorFatal] = useState(false);
   const n = Number(monto) || 0;
 
   if (!abierto) {
@@ -115,7 +117,13 @@ function FormularioAbono({ r, saldo, abonado }: { r: Reserva; saldo: number; abo
     if (n > saldo) return setError("El abono no puede superar el saldo pendiente.");
     setError("");
     iniciar(async () => {
-      const res = await registrarAbono(r.id, n);
+      let res;
+      try {
+        res = await registrarAbono(r.id, n);
+      } catch {
+        setErrorFatal(true);
+        return;
+      }
       if (res.ok) {
         setAbierto(false);
         setMonto("");
@@ -137,11 +145,12 @@ function FormularioAbono({ r, saldo, abonado }: { r: Reserva; saldo: number; abo
             setMonto(e.target.value.replace(/\D/g, ""));
             setError("");
           }}
-          onKeyDown={(e) => e.key === "Enter" && guardar()}
+          onKeyDown={(e) => e.key === "Enter" && !enviando && !errorFatal && guardar()}
           className={error ? "invalid" : ""}
         />
         {error && <small className="err">{error}</small>}
       </label>
+      {errorFatal && <ErrorConexion que="el abono se registró" />}
       <div className="abono-info">
         <button type="button" className="btn" onClick={() => (setMonto(String(saldo)), setError(""))}>
           Pagó el saldo ({formatoPesos(saldo)})
@@ -152,7 +161,7 @@ function FormularioAbono({ r, saldo, abonado }: { r: Reserva; saldo: number; abo
         <button className="btn" onClick={() => (setAbierto(false), setMonto(""), setError(""))} disabled={enviando}>
           Cancelar
         </button>
-        <button className="btn primary" onClick={guardar} disabled={enviando}>
+        <button className="btn primary" onClick={guardar} disabled={enviando || errorFatal}>
           {enviando ? "Guardando…" : "Guardar abono"}
         </button>
       </div>

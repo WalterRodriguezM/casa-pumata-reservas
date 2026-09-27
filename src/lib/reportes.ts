@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { MESES, diferenciaDias, sumarDias } from "@/lib/fechas";
+import { MESES, diferenciaDias, listaEnteros, rangosDeMeses, sumarDias, type RangoFechas } from "@/lib/fechas";
 
 const CANCELADA = 3;
 
@@ -21,7 +21,8 @@ export type GastoR = {
   descripcion: string | null;
 };
 export type Datos = { reservas: ReservaR[]; gastos: GastoR[] };
-export type Periodo = { desde: string; hasta: string };
+// Meses elegidos de un año como rangos de fechas sin traslapes (los meses seguidos van unidos).
+export type Periodo = RangoFechas[];
 
 export type Agregado = {
   reservas: ReservaR[];
@@ -38,40 +39,49 @@ export type Agregado = {
   pct: number;
 };
 
-const dosDigitos = (n: number) => String(n).padStart(2, "0");
+// meses (1-12) vacío = el año completo.
+export const periodo = (anio: number, meses: number[]): Periodo => rangosDeMeses([anio], meses);
 
-export function periodo(anio: number, mes: number): Periodo {
-  if (!mes) return { desde: `${anio}-01-01`, hasta: `${anio}-12-31` };
-  const ultimo = new Date(anio, mes, 0).getDate();
-  return { desde: `${anio}-${dosDigitos(mes)}-01`, hasta: `${anio}-${dosDigitos(mes)}-${dosDigitos(ultimo)}` };
+const enPeriodo = (p: Periodo, fecha: string) => p.some((r) => fecha >= r.desde && fecha <= r.hasta);
+
+// Un mes -> el mes anterior (enero -> diciembre del año anterior).
+// Año completo o varios meses -> los mismos meses del año anterior.
+export function periodoAnterior(anio: number, meses: number[]) {
+  const [py, pm]: [number, number[]] =
+    meses.length === 1 ? (meses[0] === 1 ? [anio - 1, [12]] : [anio, [meses[0] - 1]]) : [anio - 1, meses];
+  return { anio: py, meses: pm, rangos: periodo(py, pm) };
 }
 
-// mes 1 -> diciembre del año anterior; mes 0 (año completo) -> año anterior.
-export function periodoAnterior(anio: number, mes: number) {
-  const py = mes <= 1 ? anio - 1 : anio;
-  const pm = mes === 0 ? 0 : mes === 1 ? 12 : mes - 1;
-  return { anio: py, mes: pm, ...periodo(py, pm) };
+// «año 2026», «septiembre 2026», «junio–agosto 2026», «enero, marzo y mayo 2026».
+export function etiquetaPeriodo(anio: number, meses: number[]) {
+  if (!meses.length) return `año ${anio}`;
+  const seguidos = meses.every((m, i) => i === 0 || m === meses[i - 1] + 1);
+  if (meses.length === 1) return `${MESES[meses[0] - 1]} ${anio}`;
+  if (seguidos) return `${MESES[meses[0] - 1]}–${MESES[meses[meses.length - 1] - 1]} ${anio}`;
+  const nombres = meses.map((m) => (meses.length > 3 ? MESES[m - 1].slice(0, 3) : MESES[m - 1]));
+  return `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]} ${anio}`;
 }
-
-export const etiquetaPeriodo = (anio: number, mes: number) =>
-  mes ? `${MESES[mes - 1]} ${anio}` : `año ${anio}`;
 
 export function agregar(d: Datos, p: Periodo, hoy: string): Agregado {
-  const reservas = d.reservas.filter((r) => r.checkin >= p.desde && r.checkin <= p.hasta);
-  const todos = d.gastos.filter((g) => g.fecha >= p.desde && g.fecha <= p.hasta);
+  const reservas = d.reservas.filter((r) => enPeriodo(p, r.checkin));
+  const todos = d.gastos.filter((g) => enPeriodo(p, g.fecha));
   const gastos = todos.filter((g) => g.tipo === "casa");
   const personales = todos.filter((g) => g.tipo === "personal");
   const ingresos = reservas.reduce((a, r) => a + r.pagado, 0);
   const porCobrar = reservas.reduce((a, r) => a + (r.total - r.pagado), 0);
   const gastosTotal = gastos.reduce((a, g) => a + g.monto, 0);
 
-  const fin = p.hasta < hoy ? p.hasta : hoy;
-  const dias = fin >= p.desde ? diferenciaDias(p.desde, fin) + 1 : 0;
+  let dias = 0;
   const ocupados = new Set<string>();
-  for (const r of d.reservas) {
-    const ini = r.checkin > p.desde ? r.checkin : p.desde;
-    // Noches [check-in, check-out): el día de check-out no cuenta.
-    for (let x = ini; x <= fin && x < r.checkout; x = sumarDias(x, 1)) ocupados.add(x);
+  for (const rango of p) {
+    const fin = rango.hasta < hoy ? rango.hasta : hoy;
+    if (fin < rango.desde) continue;
+    dias += diferenciaDias(rango.desde, fin) + 1;
+    for (const r of d.reservas) {
+      const ini = r.checkin > rango.desde ? r.checkin : rango.desde;
+      // Noches [check-in, check-out): el día de check-out no cuenta.
+      for (let x = ini; x <= fin && x < r.checkout; x = sumarDias(x, 1)) ocupados.add(x);
+    }
   }
 
   return {
@@ -157,10 +167,10 @@ const uno = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) 
 export function leerFiltros(sp: Busqueda, hoy: string) {
   const anioActual = Number(hoy.slice(0, 4));
   const a = uno(sp.anio);
-  const m = uno(sp.mes);
+  const meses = listaEnteros(uno(sp.mes), 1, 12);
   return {
     anio: /^\d{4}$/.test(a) ? Number(a) : anioActual,
-    mes: /^(?:[1-9]|1[0-2])$/.test(m) ? Number(m) : 0,
+    meses: meses.length === 12 ? [] : meses, // vacío = año completo
     comparar: uno(sp.cmp) === "1",
     vista: uno(sp.vista) === "cuadre" ? ("cuadre" as const) : ("resumen" as const),
   };
@@ -254,10 +264,10 @@ const aCsv = (filas: (string | number)[][]) => "﻿" + filas.map((f) => f.map(ce
 
 const capitalizar = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export function csvResumen(d: Datos, anio: number, mes: number, hoy: string) {
-  const A = agregar(d, periodo(anio, mes), hoy);
+export function csvResumen(d: Datos, anio: number, meses: number[], hoy: string) {
+  const A = agregar(d, periodo(anio, meses), hoy);
   const filas: (string | number)[][] = [
-    ["Reporte Casa Pumata", capitalizar(etiquetaPeriodo(anio, mes))],
+    ["Reporte Casa Pumata", capitalizar(etiquetaPeriodo(anio, meses))],
     [],
     ["Indicador", "Valor"],
     ["Ingresos cobrados", A.ingresos],
@@ -275,23 +285,23 @@ export function csvResumen(d: Datos, anio: number, mes: number, hoy: string) {
     ["Mes", "Reservas", "Noches", "Ocupación %", "Ingresos", "Gastos de la casa", "Utilidad"],
   ];
   for (let i = 1; i <= 12; i++) {
-    const x = agregar(d, periodo(anio, i), hoy);
+    const x = agregar(d, periodo(anio, [i]), hoy);
     if (x.dias) filas.push([capitalizar(MESES[i - 1]), x.reservas.length, x.noches, x.pct, x.ingresos, x.gastosTotal, x.balance]);
   }
   return aCsv(filas);
 }
 
-export function csvDetalle(d: Datos, anio: number, mes: number) {
-  const p = periodo(anio, mes);
+export function csvDetalle(d: Datos, anio: number, meses: number[]) {
+  const p = periodo(anio, meses);
   const filas: (string | number)[][] = [["Tipo", "Fecha", "Descripción", "Origen / Categoría", "Monto", "Costo total", "Socio", "Se pagó con"]];
   d.reservas
-    .filter((r) => r.checkin >= p.desde && r.checkin <= p.hasta)
+    .filter((r) => enPeriodo(p, r.checkin))
     .sort((a, b) => a.checkin.localeCompare(b.checkin))
     .forEach((r) =>
       filas.push(["Reserva", r.checkin, `${r.huesped} · salida ${r.checkout} · ${diferenciaDias(r.checkin, r.checkout)} noches`, r.origen, r.pagado, r.total, "", ""]),
     );
   d.gastos
-    .filter((g) => g.fecha >= p.desde && g.fecha <= p.hasta)
+    .filter((g) => enPeriodo(p, g.fecha))
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
     .forEach((g) => filas.push([g.tipo === "casa" ? "Gasto de la casa" : "Gasto personal", g.fecha, g.descripcion ?? "", g.categoria, -g.monto, "", g.socio ?? (g.tipo === "personal" ? "Por confirmar" : ""), g.cuenta]));
   return aCsv(filas);

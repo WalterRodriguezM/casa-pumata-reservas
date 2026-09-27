@@ -9,10 +9,10 @@ export async function GET(request: Request) {
   }
 
   const hoy = hoyColombia();
-  const { anio, mes } = leerFiltros(Object.fromEntries(url.searchParams), hoy);
+  const { anio, meses } = leerFiltros(Object.fromEntries(url.searchParams), hoy);
   const datos = await cargarDatos(anio);
-  const csv = tipo === "resumen" ? csvResumen(datos, anio, mes, hoy) : csvDetalle(datos, anio, mes);
-  const periodo = mes ? `${anio}-${String(mes).padStart(2, "0")}` : String(anio);
+  const csv = tipo === "resumen" ? csvResumen(datos, anio, meses, hoy) : csvDetalle(datos, anio, meses);
+  const periodo = meses.length ? `${anio}-${meses.map((m) => String(m).padStart(2, "0")).join("_")}` : String(anio);
 
   return new Response(csv, {
     headers: {

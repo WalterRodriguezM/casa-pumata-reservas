@@ -3,8 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Item } from "@/lib/catalogos";
+import { MESES } from "@/lib/fechas";
+import { SeleccionMultiple } from "@/components/seleccion-multiple";
 
-export function FiltrosReservas({ origenes, estados }: { origenes: Item[]; estados: Item[] }) {
+const lista = (v: string | null) => (v ? v.split(",") : []);
+
+// Año y mes filtran por el check-in; sin año elegido no hay filtro de fecha.
+export function FiltrosReservas({ origenes, estados, anios }: { origenes: Item[]; estados: Item[]; anios: number[] }) {
   const router = useRouter();
   const ruta = usePathname();
   const params = useSearchParams();
@@ -33,7 +38,9 @@ export function FiltrosReservas({ origenes, estados }: { origenes: Item[]; estad
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  const hayFiltros = !!(q || params.get("origen") || params.get("estado"));
+  const aniosSel = lista(params.get("anio"));
+  const meses = lista(params.get("mes"));
+  const hayFiltros = !!(q || params.get("origen") || params.get("estado") || aniosSel.length || meses.length);
 
   return (
     <div className="filtros">
@@ -41,6 +48,23 @@ export function FiltrosReservas({ origenes, estados }: { origenes: Item[]; estad
         Huésped
         <input type="search" placeholder="Buscar por nombre…" autoComplete="off" value={q} onChange={(e) => setQ(e.target.value)} />
       </label>
+      <SeleccionMultiple
+        etiqueta="Año"
+        todos="Todos los años"
+        plural="años"
+        opciones={anios.map((a) => ({ valor: String(a), nombre: String(a) }))}
+        valor={aniosSel}
+        cambiar={(v) => ir(v.length ? { anio: v.join(",") } : { anio: "", mes: "" })}
+      />
+      <SeleccionMultiple
+        etiqueta="Mes de check-in"
+        todos="Todos los meses"
+        plural="meses"
+        opciones={MESES.map((m, i) => ({ valor: String(i + 1), nombre: m.charAt(0).toUpperCase() + m.slice(1), corto: m.charAt(0).toUpperCase() + m.slice(1, 3) }))}
+        valor={meses}
+        cambiar={(v) => ir({ mes: v.join(",") })}
+        deshabilitado={aniosSel.length === 0}
+      />
       <label>
         Origen
         <select value={params.get("origen") ?? ""} onChange={(e) => ir({ origen: e.target.value })}>
