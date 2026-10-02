@@ -179,14 +179,7 @@ export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, crea
                   {errorEnvio}
                 </div>
               )}
-              <label style={{ maxWidth: 240 }}>
-                Número de huéspedes (máx. {MAX_HUESPEDES})
-                <div className="stepper">
-                  <button type="button" onClick={() => setNumHuespedes(Math.max(1, numHuespedes - 1))} aria-label="Menos">−</button>
-                  <output>{numHuespedes}</output>
-                  <button type="button" onClick={() => setNumHuespedes(Math.min(MAX_HUESPEDES, numHuespedes + 1))} aria-label="Más">+</button>
-                </div>
-              </label>
+              <ContadorHuespedes valor={numHuespedes} cambiar={setNumHuespedes} />
               <CamposDetalle
                 catalogos={catalogos}
                 estados={catalogos.estados}
@@ -279,6 +272,20 @@ export function WizardReserva({ catalogos, hoy, ocupacion, inicial, cerrar, crea
 }
 
 /* ---------- Campos del Paso 2 (compartidos con la edición) ---------- */
+// Contador de huéspedes: los botones no dejan salir de 1..MAX_HUESPEDES.
+export function ContadorHuespedes({ valor, cambiar }: { valor: number; cambiar: (n: number) => void }) {
+  return (
+    <label style={{ maxWidth: 240 }}>
+      Número de huéspedes (máx. {MAX_HUESPEDES})
+      <div className="stepper">
+        <button type="button" onClick={() => cambiar(Math.max(1, valor - 1))} disabled={valor <= 1} aria-label="Menos">−</button>
+        <output>{valor}</output>
+        <button type="button" onClick={() => cambiar(Math.min(MAX_HUESPEDES, valor + 1))} disabled={valor >= MAX_HUESPEDES} aria-label="Más">+</button>
+      </div>
+    </label>
+  );
+}
+
 export function CamposDetalle(p: {
   editando?: boolean;
   catalogos: Catalogos;

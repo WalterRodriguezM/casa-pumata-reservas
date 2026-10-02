@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { hoyColombia } from "@/lib/fechas";
 import {
-  MAX_HUESPEDES,
   errorCorreo,
   errorDocumento,
+  errorHuespedes,
   errorNombre,
   errorTelefono,
 } from "@/lib/validacion";
@@ -90,8 +90,7 @@ function validar(i: ReservaInput): string | null {
   if (!RE_FECHA.test(i.checkin) || !RE_FECHA.test(i.checkout)) return "Fechas inválidas.";
   if (i.checkin < hoyColombia()) return "El check-in no puede ser una fecha pasada.";
   if (i.checkout <= i.checkin) return "El check-out debe ser posterior al check-in.";
-  if (!Number.isInteger(i.numeroHuespedes) || i.numeroHuespedes < 1 || i.numeroHuespedes > MAX_HUESPEDES)
-    return `El número de huéspedes debe estar entre 1 y ${MAX_HUESPEDES}.`;
+  if (errorHuespedes(i.numeroHuespedes)) return errorHuespedes(i.numeroHuespedes);
   if (!ESTADOS_AL_CREAR.includes(i.estadoId)) return "Estado de reserva inválido.";
   if (!(i.montoTotal > 0)) return "El monto total debe ser mayor a 0.";
   if (i.montoPagado < 0 || i.montoPagado > i.montoTotal)
@@ -180,6 +179,7 @@ export type EdicionInput = {
   origenId: number;
   metodoId: number;
   estadoId: number; // 1 Pendiente, 2 Confirmada, 3 Cancelada
+  numeroHuespedes: number;
   montoTotal: number;
   montoPagado: number;
   notas: string;
@@ -190,6 +190,8 @@ export async function actualizarReserva(
   input: EdicionInput,
 ): Promise<ResultadoReserva> {
   if (![1, 2, 3].includes(input.estadoId)) return { ok: false, tipo: "validacion", mensaje: "Estado de reserva inválido." };
+  if (errorHuespedes(input.numeroHuespedes))
+    return { ok: false, tipo: "validacion", mensaje: errorHuespedes(input.numeroHuespedes) };
   if (!(input.montoTotal > 0)) return { ok: false, tipo: "validacion", mensaje: "El monto total debe ser mayor a 0." };
   if (input.montoPagado < 0 || input.montoPagado > input.montoTotal)
     return { ok: false, tipo: "validacion", mensaje: "El monto pagado no puede ser negativo ni superar el total." };
@@ -241,6 +243,7 @@ export async function actualizarReserva(
       origen_reserva_id: input.origenId,
       metodo_pago_id: input.metodoId > 0 ? input.metodoId : null,
       estado_reserva_id: input.estadoId,
+      numero_huespedes: input.numeroHuespedes,
       monto_total: input.montoTotal,
       monto_pagado: input.montoPagado,
       notas: input.notas.trim() || null,

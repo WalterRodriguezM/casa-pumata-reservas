@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { actualizarReserva } from "@/app/(app)/reservas/actions";
-import { CamposDetalle, type Huesped } from "@/components/wizard-reserva";
+import { CamposDetalle, ContadorHuespedes, type Huesped } from "@/components/wizard-reserva";
 import { ErrorConexion } from "@/components/error-conexion";
 import type { Catalogos } from "@/lib/catalogos";
 import { diferenciaDias, formatoFecha } from "@/lib/fechas";
@@ -27,6 +27,7 @@ export function EditarReserva({ reserva: r, catalogos, volver, guardada }: Props
   const [origenId, setOrigenId] = useState(r.origenId);
   const [metodoId, setMetodoId] = useState(r.metodoId);
   const [estadoId, setEstadoId] = useState(r.estadoId);
+  const [numHuespedes, setNumHuespedes] = useState(r.numeroHuespedes);
   const [total, setTotal] = useState(String(r.montoTotal));
   const [pagado, setPagado] = useState(String(r.montoPagado));
   const [notas, setNotas] = useState(r.notas ?? "");
@@ -50,6 +51,7 @@ export function EditarReserva({ reserva: r, catalogos, volver, guardada }: Props
         origenId,
         metodoId,
         estadoId,
+        numeroHuespedes: numHuespedes,
         montoTotal: nTotal,
         montoPagado: nPagado,
         notas,
@@ -79,7 +81,7 @@ export function EditarReserva({ reserva: r, catalogos, volver, guardada }: Props
         </div>
         <div className="mb">
           <div className="chip" style={{ width: "fit-content" }}>
-            {formatoFecha(r.checkin)} → {formatoFecha(r.checkout)} · {noches} {noches === 1 ? "noche" : "noches"} · {r.numeroHuespedes} huésp.
+            {formatoFecha(r.checkin)} → {formatoFecha(r.checkout)} · {noches} {noches === 1 ? "noche" : "noches"}
           </div>
           {error && (
             <div className="alert" role="alert">
@@ -87,6 +89,7 @@ export function EditarReserva({ reserva: r, catalogos, volver, guardada }: Props
             </div>
           )}
           {errorFatal && <ErrorConexion que="los cambios se guardaron" />}
+          <ContadorHuespedes valor={numHuespedes} cambiar={setNumHuespedes} />
           <CamposDetalle
             editando
             catalogos={catalogos}

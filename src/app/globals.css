@@ -8,6 +8,8 @@
   --line: #d5ddda;
   --occ: #bfd6d1;
   --occ-ink: #123b3a;
+  --occ2: #c6d0ea;
+  --occ2-ink: #1f2f57;
   --accent: #c7811f;
   --accent-ink: #ffffff;
   --accent-soft: #f6e5c6;
@@ -32,6 +34,8 @@
     --line: #2a3b3e;
     --occ: #245451;
     --occ-ink: #cfe9e4;
+    --occ2: #2e3f6b;
+    --occ2-ink: #d6defa;
     --accent: #e0a040;
     --accent-ink: #1a1203;
     --accent-soft: #3a2c12;
@@ -209,18 +213,60 @@ h1 small {
 .cell.pasada.ocupada {
   cursor: pointer;
 }
+/* barras de reservas: un tramo por reserva y celda (ver grilla-mes.tsx) */
+.cell .barra {
+  position: absolute;
+  top: 30px;
+  bottom: 8px;
+  z-index: 1;
+  background: var(--occ);
+  cursor: pointer;
+}
+.cell .barra.t2 {
+  background: var(--occ2);
+}
+.cell .barra.ini {
+  border-top-left-radius: 9px;
+  border-bottom-left-radius: 9px;
+}
+.cell .barra.fin {
+  border-top-right-radius: 9px;
+  border-bottom-right-radius: 9px;
+}
+/* nombre del huésped: arranca con la barra; hasta dos líneas y luego «…» */
 .cell .lbl {
   position: absolute;
-  left: 6px;
-  bottom: 6px;
+  top: 30px;
+  bottom: 8px;
   z-index: 2;
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  padding: 0 4px 0 8px;
+  font-size: 13px;
+  line-height: 1.2;
   font-weight: 700;
   color: var(--occ-ink);
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   pointer-events: none;
+}
+.cell .lbl.t2 {
+  color: var(--occ2-ink);
+}
+.cell .lbl span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.legend i.barra-muestra {
+  background: var(--occ);
+  border-color: transparent;
+  border-radius: 6px;
+}
+.legend i.barra-muestra.t2 {
+  background: var(--occ2);
 }
 .cell.libre-hover:hover {
   box-shadow: inset 0 0 0 100px var(--accent-soft);
@@ -424,8 +470,15 @@ input {
   .cell .n {
     font-size: 13px;
   }
+  .cell .barra,
+  .cell .lbl {
+    top: 22px;
+    bottom: 4px;
+  }
   .cell .lbl {
     font-size: 10px;
+    line-height: 1.15;
+    padding: 0 2px 0 4px;
   }
   .overlay {
     padding: 0;
@@ -545,6 +598,19 @@ input.invalid {
 }
 .compacto .cell .n {
   font-size: 13px;
+}
+.compacto .cell .barra {
+  top: auto;
+  bottom: 6px;
+  height: 12px;
+}
+.compacto .cell .barra.ini {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+.compacto .cell .barra.fin {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
 }
 .ayuda {
   font-size: 12px;

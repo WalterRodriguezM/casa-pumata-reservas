@@ -1,7 +1,11 @@
 "use client";
 
 import { DIAS_SEMANA, aIso, diferenciaDias } from "@/lib/fechas";
-import { fondoCelda, type Ocupacion } from "@/lib/ocupacion";
+import { tramosDia, type Ocupacion } from "@/lib/ocupacion";
+import type { Reserva } from "@/lib/reservas";
+
+// Hueco entre la reserva que sale y la que entra el mismo día: 3px a cada lado de la mitad.
+const MEDIO_HUECO = "3px";
 
 type Rango = { a: string; b: string };
 
@@ -32,11 +36,11 @@ export function GrillaMes({
   for (let dia = 1; dia <= diasMes; dia++) {
     const d = aIso(new Date(anio, mes, dia));
     const dow = (relleno + dia - 1) % 7;
-    const fondo = fondoCelda(ocupacion, d);
+    const { sale, noche, entra } = tramosDia(ocupacion, d);
     let cls = "cell";
     if (d === hoy) cls += " hoy";
     if (d < hoy) cls += " pasada";
-    else if (!fondo && libreHover) cls += " libre-hover";
+    else if (!noche && !sale && libreHover) cls += " libre-hover";
     if (seleccion) {
       if (seleccion.a < seleccion.b) {
         if (d >= seleccion.a && d < seleccion.b) cls += seleccionValida ? " sel" : " bad";
@@ -44,19 +48,51 @@ export function GrillaMes({
       } else if (d === seleccion.a) cls += " sel-end";
     }
     if (resaltado && d >= resaltado.a && d <= resaltado.b) cls += " nueva";
+
+    const tono = (r: Reserva) => (ocupacion.tono.get(r.id) ? " t2" : "");
+    // Las barras se extienden 1px sobre el borde entre celdas para verse continuas;
+    // al inicio y al final de la fila se quedan dentro de la celda.
+    const bordeIzq = dow === 0 ? "0" : "-1px";
+    const bordeDer = dow === 6 ? "0" : "-1px";
+    const inicioNoche = entra ? `calc(50% + ${MEDIO_HUECO})` : bordeIzq;
+
     let etiqueta = null;
-    const res = nombres ? ocupacion.noche.get(d) : undefined;
-    if (res && (res.checkin === d || dow === 0)) {
-      const tramo = Math.min(diferenciaDias(d, res.checkout), 7 - dow);
+    if (nombres && noche && (entra || dow === 0)) {
+      // El nombre arranca donde empieza la barra y llega hasta donde termina en esta fila.
+      const hastaFin = diferenciaDias(d, noche.checkout);
+      const hastaFila = 7 - dow;
+      const ancho =
+        hastaFin < hastaFila
+          ? entra
+            ? `calc(${hastaFin * 100}% - ${MEDIO_HUECO} * 2)`
+            : `calc(${hastaFin * 100}% + 50% - ${MEDIO_HUECO})`
+          : entra
+            ? `calc(${hastaFila * 100}% - 50% - ${MEDIO_HUECO})`
+            : `${hastaFila * 100}%`;
       etiqueta = (
-        <span className="lbl" style={{ maxWidth: `calc(${tramo * 100}% - 10px)` }}>
-          {res.huesped.nombre}
+        <span className={`lbl${tono(noche)}`} style={{ left: inicioNoche, width: ancho }}>
+          <span>{noche.huesped.nombre}</span>
         </span>
       );
     }
+
     celdas.push(
-      <div key={d} className={cls} data-d={d} style={fondo ? { backgroundImage: fondo } : undefined}>
+      <div key={d} className={cls} data-d={d}>
         <span className="n">{dia}</span>
+        {sale && (
+          <i
+            className={`barra fin${tono(sale)}`}
+            style={{ left: bordeIzq, right: `calc(50% + ${MEDIO_HUECO})` }}
+            title={sale.huesped.nombre}
+          />
+        )}
+        {noche && (
+          <i
+            className={`barra${entra ? " ini" : ""}${tono(noche)}`}
+            style={{ left: inicioNoche, right: bordeDer }}
+            title={noche.huesped.nombre}
+          />
+        )}
         {etiqueta}
       </div>,
     );
@@ -79,9 +115,8 @@ export function GrillaMes({
 export function LeyendaCalendario() {
   return (
     <div className="legend">
-      <span><i style={{ background: "var(--occ)" }} />Ocupada</span>
-      <span><i style={{ background: "linear-gradient(90deg,var(--occ) 50%,transparent 50%)" }} />Check-out (libre desde la tarde)</span>
-      <span><i style={{ background: "linear-gradient(90deg,transparent 50%,var(--occ) 50%)" }} />Check-in</span>
+      <span><i className="barra-muestra" />Reserva</span>
+      <span><i className="barra-muestra t2" />Reserva pegada a la anterior</span>
       <span><i style={{ background: "var(--sel)" }} />Selección</span>
       <span>
         <i style={{ background: "repeating-linear-gradient(135deg,transparent 0 4px,var(--line) 4px 5px)" }} />

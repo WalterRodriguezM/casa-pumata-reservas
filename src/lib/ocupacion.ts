@@ -6,6 +6,7 @@ import type { Reserva } from "@/lib/reservas";
 export type Ocupacion = {
   noche: Map<string, Reserva>; // día -> reserva que ocupa esa noche
   salida: Map<string, Reserva>; // día -> reserva que sale ese día
+  tono: Map<string, 0 | 1>; // id de reserva -> tono de su barra en el calendario
   nocheOcupada: (d: string) => boolean;
   // Reserva que ocupa la mitad del día: "L" = mañana (sale), "R" = noche (duerme).
   enMitad: (d: string, mitad: "L" | "R") => Reserva | undefined;
@@ -27,6 +28,7 @@ export function crearOcupacion(reservas: Reserva[]): Ocupacion {
   return {
     noche,
     salida,
+    tono: tonosPorCadena(reservas),
     nocheOcupada: (d) => noche.has(d),
     enMitad,
     // Todas las noches [a, b) deben estar libres y el check-in no puede ser pasado.
@@ -38,10 +40,28 @@ export function crearOcupacion(reservas: Reserva[]): Ocupacion {
   };
 }
 
-// Fondo de una celda dividida: mitad izquierda = mañana, derecha = noche.
-export function fondoCelda(o: Ocupacion, d: string): string | undefined {
-  const izq = !!o.enMitad(d, "L");
-  const der = o.nocheOcupada(d);
-  if (!izq && !der) return undefined;
-  return `linear-gradient(90deg, ${izq ? "var(--occ)" : "transparent"} 50%, ${der ? "var(--occ)" : "transparent"} 50%)`;
+const CANCELADA = 3;
+
+// Tono de cada reserva: en una cadena de reservas pegadas (la siguiente entra el día
+// que sale la anterior) los tonos alternan 0, 1, 0…; una reserva sin otra pegada
+// antes vuelve al 0. Así el tono no cambia al crear reservas en otras fechas.
+export function tonosPorCadena(reservas: Reserva[]): Map<string, 0 | 1> {
+  const orden = reservas.filter((r) => r.estadoId !== CANCELADA).sort((a, b) => a.checkin.localeCompare(b.checkin));
+  const tono = new Map<string, 0 | 1>();
+  orden.forEach((r, i) => {
+    const previa = orden[i - 1];
+    tono.set(r.id, previa && previa.checkout === r.checkin ? (tono.get(previa.id) === 0 ? 1 : 0) : 0);
+  });
+  return tono;
+}
+
+// Tramos de barra que se dibujan en un día:
+//  * sale: la reserva que sale ese día (ocupa la mañana, termina antes de la mitad).
+//  * noche: la reserva que duerme esa noche; `entra` si ese día es su check-in
+//    (empieza después de la mitad), si no, viene del día anterior y ocupa la celda entera.
+export type TramosDia = { sale?: Reserva; noche?: Reserva; entra: boolean };
+
+export function tramosDia(o: Ocupacion, d: string): TramosDia {
+  const noche = o.noche.get(d);
+  return { sale: o.salida.get(d), noche, entra: !!noche && noche.checkin === d };
 }
